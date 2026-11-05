@@ -77,7 +77,7 @@ async function handler(req, res, deps = {}) {
     cache.set(k, dados);
     if (cache.size > 300) cache.delete(cache.keys().next().value);
     let salvoNaNuvem = false;
-    try { salvoNaNuvem = await arm.salvar(dados); } catch (e) { console.warn('[armazem] não salvou:', e && e.message); }
+    try { salvoNaNuvem = await arm.salvar(dados); await arm.anotarSerie(dados); } catch (e) { console.warn('[armazem] não salvou:', e && e.message); }
     return res.status(200).json({ ...dados, salvoNaNuvem });
   } catch (e) {
     return res.status(e.status || 500).json({ erro: 'Não consegui pesquisar agora: ' + e.message });

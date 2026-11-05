@@ -12,6 +12,7 @@ async function handler(req, res, deps = {}) {
   const termo = String((req.query && req.query.termo) || '').trim().slice(0, 120);
   if (req.method === 'GET') {
     if (!termo) return res.status(200).json({ nuvem: arm.ativo, itens: await arm.indice() });
+    if (req.query.serie) return res.status(200).json({ termo, pontos: await arm.serie(termo) });
     const d = await arm.ler(termo);
     return d ? res.status(200).json(d) : res.status(404).json({ erro: 'Pesquisa não encontrada.' });
   }
