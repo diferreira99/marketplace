@@ -123,7 +123,7 @@ $('#tema').onclick = () => {
   document.documentElement.dataset.theme = escuro ? 'light' : 'dark'; ls.set('radar_tema', document.documentElement.dataset.theme);
 };
 function mostrarLogin(sim) { $('#login').classList.toggle('hidden', !sim); $('#app').classList.toggle('hidden', sim); if (sim) setTimeout(() => $('#senha').focus(), 50); }
-$('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); carregar(); };
+$('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); carregar(); primeiraVez(); };
 $('#senha').onkeydown = e => { if (e.key === 'Enter') $('#entrar').click(); };
 $('#sair').onclick = () => { ls.del('radar_senha'); $('#senha').value = ''; mostrarLogin(true); };
 $('#logos-lado').innerHTML = Object.keys(CANAIS).map(k => logo(k, true)).join('');
@@ -134,7 +134,7 @@ function irPara(aba) {
   $$('#nav button').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button').forEach(b => b.onclick = () => irPara(b.dataset.aba));
@@ -150,6 +150,8 @@ async function carregar() {
   if (abaAtual === 'painel') pintarPainel();
   if (abaAtual === 'vigiadas') pintarVigiadas();
   if (abaAtual === 'taxas') pintarTaxas();
+  if (abaAtual === 'trilha') pintarTrilha();
+  atualizarSeloTrilha();
 }
 function cfg() { return S.cfg || { imposto: Margem.PADRAO.imposto, margemAlvo: Margem.PADRAO.margemAlvo, taxas: Margem.TAXAS_PADRAO, custos: {}, vigiadas: [] }; }
 function vigiada(termo) { return (cfg().vigiadas || []).some(v => v.chave === slug(termo)); }
@@ -454,6 +456,7 @@ function melhorCanal(linhas) {
 async function gerarTitulos(d) {
   const bt = $('#bt-titulos'), out = $('#titulos-saida');
   const detalhes = ($('#an-detalhes') && $('#an-detalhes').value.trim()) || '';
+  marcarTrilha('anuncio');
   bt.disabled = true; out.innerHTML = '<div class="vazio"><span class="carregando"></span>Escrevendo o anúncio… (com a IA pode levar até 1 minuto)</div>';
   try {
     const r = await api('/api/titulos', { method: 'POST', body: JSON.stringify({ termo: d.termo, dados: d, detalhes }) });
@@ -478,6 +481,7 @@ async function gerarTitulos(d) {
 
 // 🔗 Relatório para compartilhar
 async function compartilharRelatorio(d) {
+  marcarTrilha('relatorio');
   const bt = $('#bt-compartilhar'); bt.disabled = true; bt.textContent = 'Gerando link…';
   try {
     const r = await api('/api/compartilhar', { method: 'POST', body: JSON.stringify({ termo: d.termo, extras: S.extras || {} }) });
@@ -626,6 +630,7 @@ function pintarTaxas() {
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="pri" id="tx-salvar">Salvar para o time</button><button type="button" id="tx-padrao">Voltar ao padrão</button><span class="small muted" id="tx-est"></span></div>' +
     '<p class="aviso">Taxa fixa: cobrada por unidade quando o preço fica abaixo do limite. Frete: o que você paga do frete grátis quando o preço fica acima do limite. Deixe o limite vazio para a taxa fixa valer sempre.</p></div>';
   $('#tx-salvar').onclick = async () => {
+    marcarTrilha('taxas');
     const taxas = {};
     $$('[data-tx]').forEach(i => { const [id, k] = i.dataset.tx.split('.'); taxas[id] = taxas[id] || {}; taxas[id][k] = i.value === '' ? (k === 'limiteFixo' ? 1e9 : 0) : Number(i.value); });
     const faixas = [];
@@ -905,10 +910,177 @@ function pintarCalendario() {
     const u = Number($('#cal-unid').value) || 0; ls.set('radar_unid_mes', u);
     $('#cal-corpo').innerHTML = datas.map(x => '<tr><td class="num">' + new Date(x.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) + '</td><td><b>' + esc(x.nome) + '</b></td><td class="num">' + x.dias + ' dias</td><td class="num">' + Math.round((x.fator - 1) * 100) + '%</td><td>' + (x.atrasado ? '<span class="var-neg">já devia ter começado</span>' : new Date(x.produzirAte + 'T12:00:00').toLocaleDateString('pt-BR')) + '</td><td class="num"><b>' + (u ? '+' + num(Calendario.extra(u, x.fator)) : '—') + '</b></td><td class="small">' + esc(x.dica) + '</td></tr>').join('');
   };
-  $('#cal-unid').oninput = desenhar; desenhar();
+  $('#cal-unid').oninput = desenhar; desenhar(); marcarTrilha('datas');
 }
+
+// ───────────────────────── ❓ BALÕES DE AJUDA ─────────────────────────
+// Cada título, número e coluna do painel ganha um "?" que explica o que é, em português simples.
+// A ligação é pelo texto (começo do título), então vale para tudo que o painel desenha.
+const AJUDA = [
+  // pesquisa
+  ['visão geral', 'Resumo do produto pesquisado: preço mais comum, menor e maior preço, quantos anúncios existem nos 3 marketplaces e quantas lojas vendem no Google Shopping. Logo abaixo, os pontos que formaram a nota.'],
+  ['preço mais comum', 'A mediana: metade dos concorrentes vende abaixo desse valor e metade acima. É a referência de "quanto o mercado cobra".'],
+  ['menor', 'O menor e o maior preço encontrados, sem contar valores fora da curva (kits grandes, atacado).'],
+  ['anúncios nos 3', 'Quantos anúncios de produto (não páginas de lista) apareceram no Mercado Livre, na Shopee e na Amazon para essa palavra.'],
+  ['lojas no google shopping', 'Quantas lojas diferentes vendem esse produto no Google Shopping. Muitas lojas = mercado aquecido e mais concorrência.'],
+  ['onde vender', 'Nota de 0 a 100 para cada canal, somando: demanda (vendas e buscas lá dentro, até 40), espaço na concorrência (até 15), preço praticado no canal (até 15) e a sua margem com o custo informado (até 30). O canal com maior nota é o recomendado para começar.'],
+  ['melhor canal', 'O canal com a maior nota. Canal sem sinais de venda nunca é recomendado, mesmo com pouca concorrência.'],
+  ['vale a pena', 'A calculadora de lucro. Você informa custo de produção, embalagem, peso e medidas, e ela tira de cada preço a comissão, a taxa fixa, o frete e o imposto de cada canal. O que sobra é o lucro por unidade.'],
+  ['lucro por unidade', 'Quanto sobra no seu bolso por unidade vendida em cada canal, depois de todas as taxas, frete, imposto e custo.'],
+  ['para lucrar', 'Quantas unidades você precisa vender por mês (e por dia) em cada canal para chegar no lucro que digitou. A produção já vem com 10% de folga.'],
+  ['kits', 'Vender 2, 3, 5 ou 10 unidades num anúncio só. A comissão e a taxa fixa são cobradas uma vez e o frete sai pelo peso total, então cada unidade costuma render mais. "+R$ por unidade" mostra quanto.'],
+  ['preço ideal', 'Mostra onde estão os preços dos concorrentes de cada canal (pontos; os maiores vendem 100+), a faixa competitiva (área clara), o seu preço mínimo para bater a meta de margem (linha vermelha) e o preço sugerido (▼).'],
+  ['plano de vendas', 'Lista de ações práticas montada a partir desta pesquisa: por onde começar, Clássico ou Premium, kit, primeiras vendas, anúncios pagos, Full e datas.'],
+  ['anúncio pronto', 'Gera o anúncio para os 3 canais: títulos no limite de caracteres de cada um, descrição, destaques, ficha técnica e respostas para as perguntas que o povo faz. Preencha os dados do produto antes: o texto usa só o que você informou.'],
+  ['mercado livre', 'Anúncios do Mercado Livre que o Google mostra para essa palavra, com preço, vendidos e nota quando aparecem. "anúncio" = página de produto; "lista/categoria" = página de busca do ML.'],
+  ['shopee', 'Anúncios da Shopee que o Google mostra para essa palavra, com preço e vendidos quando aparecem.'],
+  ['amazon', 'Anúncios da Amazon que o Google mostra para essa palavra, com preço e nota quando aparecem.'],
+  ['google shopping', 'Ofertas do Google Shopping: quem vende, por quanto e com qual avaliação. Ajuda a ver lojas fora dos marketplaces.'],
+  ['distribuição de preços', 'Quantos preços caem em cada faixa de valor. A coluna mais alta é onde a maioria dos concorrentes está.'],
+  ['o que a concorrência vende', 'Fotos dos produtos dos concorrentes no Google Shopping. Toque para abrir o anúncio.'],
+  ['evolução no tempo', 'Como o preço mais comum e a nota mudaram a cada checagem. Aparece quando a palavra é vigiada ou foi pesquisada mais de uma vez.'],
+  ['seo', 'As 10 primeiras páginas do Google para essa palavra. Muitos marketplaces no topo = o povo busca para comprar.'],
+  ['demanda', 'O que as pessoas digitam no Google, na busca do Mercado Livre e da Amazon. Use essas variações nos títulos e na descrição: é assim que o cliente acha o anúncio.'],
+  ['o que os compradores reclamam', 'Lê as avaliações dos anúncios concorrentes no Mercado Livre e agrupa as reclamações por tema. O que eles erram é o que você pode fazer melhor no produto e deixar claro no anúncio.'],
+  ['fotos do anúncio', 'Regras de foto de cada canal e pedidos prontos para gerar imagens com IA (capa, uso real, medidas, prova de força).'],
+  // painel
+  ['painel do time', 'Visão geral de todas as pesquisas do time, salvas na nuvem.'],
+  ['pesquisas', 'Quantas palavras-chave o time já pesquisou.'],
+  ['validados', 'Quantos produtos tiraram nota 65 ou mais (sinais fortes de que vendem).'],
+  ['nota média', 'A média das notas de todas as pesquisas.'],
+  ['vigiadas', 'Palavras-chave que o Radar pesquisa de novo sozinho toda segunda, para você acompanhar preço, nota e concorrência no tempo.'],
+  ['o que mudou', 'Alertas das checagens de segunda: preço que caiu ou subiu 10%+, nota que mudou 10+ pontos, concorrência que entrou, concorrente que baixou preço ou vendeu mais.'],
+  ['melhores produtos', 'Os produtos pesquisados com as maiores notas. Toque numa barra para abrir.'],
+  ['preço × nota', 'Cada ponto é um produto: quanto mais alto, melhor a nota; quanto mais à direita, mais caro. Os melhores ficam em cima.'],
+  ['como estão as ideias', 'Quantos produtos são validados, nicho ou fracos.'],
+  ['anúncios encontrados por canal', 'Soma dos anúncios encontrados em todas as pesquisas, por marketplace.'],
+  ['todas as pesquisas', 'A lista completa. Toque numa linha para abrir a pesquisa salva (não gasta crédito).'],
+  // outras abas
+  ['catálogo da fábrica', 'Seus produtos e variações (largura, comprimento...). Com custo e peso de cada variação, o Radar mostra quais dão mais lucro e o melhor canal de cada uma.'],
+  ['ranking de lucro', 'As variações do catálogo ordenadas pelo lucro por unidade no melhor canal de cada uma.'],
+  ['pesquisa em lote', 'Pesquisa até 20 palavras de uma vez e mostra o ranking. Bom para comparar variações e ideias.'],
+  ['ranking', 'As palavras pesquisadas no lote, da maior nota para a menor.'],
+  ['vigiadas e concorrentes', 'O que o Radar acompanha sozinho toda segunda: palavras-chave e anúncios de concorrentes.'],
+  ['concorrentes', 'Anúncios de concorrentes que você acompanha: preço, vendidos e nota a cada checagem. Cole o link do anúncio para começar.'],
+  ['palavras vigiadas', 'Palavras-chave refeitas toda segunda. A tabela mostra a nota e como o preço mudou desde que começou a vigiar.'],
+  ['minha loja', 'Os seus números reais do Mercado Livre (só leitura): vendas, visitas e conversão dos últimos 30 dias, anúncio por anúncio.'],
+  ['pedidos', 'Pedidos pagos nos últimos 30 dias na sua conta do Mercado Livre.'],
+  ['faturamento', 'Soma do valor vendido nos últimos 30 dias (sem descontar taxas).'],
+  ['visitas', 'Quantas vezes seus anúncios foram vistos nos últimos 30 dias.'],
+  ['conversão', 'De cada 100 visitas, quantas viraram venda. Acima de 3% é bom; abaixo de 1% indica problema de preço, foto, frete ou avaliação.'],
+  ['calendário de vendas', 'As datas que mais vendem no varejo online e até quando produzir para não faltar estoque.'],
+  ['taxas e impostos', 'Os valores que a calculadora usa: comissão, taxa fixa, frete e imposto de cada canal. Valem para todo o time. Confira no painel de vendedor e ajuste aqui.'],
+  ['frete pelo peso', 'Quanto você paga do frete grátis em cada faixa de peso. Vale o maior entre o peso real e o cubado (comprimento × largura × altura ÷ 6000).'],
+  ['shopee: comissão por faixa', 'Na Shopee a comissão muda conforme o preço do produto. Ficar abaixo de R$ 80 costuma sair mais barato para itens de baixo valor.'],
+  // colunas
+  ['comissão', 'Porcentagem que o marketplace cobra sobre o preço de venda.'],
+  ['taxa fixa', 'Valor cobrado por unidade em produtos baratos (no Mercado Livre, abaixo de R$ 79; na Shopee, por faixa de preço).'],
+  ['frete', 'O que você paga do frete grátis do comprador. No Mercado Livre e na Amazon, acima de R$ 79; na Shopee já está na comissão.'],
+  ['imposto', 'O imposto sobre a venda (Simples Nacional, por exemplo). Ajuste a porcentagem em ⚙️ Taxas.'],
+  ['custo', 'Custo de produção + embalagem de uma unidade.'],
+  ['margem', 'Quanto do preço vira lucro, em porcentagem. Ex.: 25% = de cada R$ 100 vendidos, R$ 25 sobram.'],
+  ['preço p/', 'O menor preço que entrega a sua meta de margem nesse canal.'],
+  ['nota', 'Nota de validação de 0 a 100: quanto mais alta, mais sinais de que o produto vende.'],
+  ['concorrência', 'Baixa, média ou alta, pela soma de anúncios e lojas encontrados.'],
+  ['palavra-chave', 'O termo que o cliente digita para achar o produto. Cada variação pode ter a sua (ex.: "fita dupla face espuma 19mm espelho").'],
+  ['seu preço', 'O preço que você pretende cobrar. Vazio = usa o preço mais comum do mercado.'],
+  ['preço mercado', 'O preço mais comum dos concorrentes para essa variação.'],
+];
+const _ajudaNorm = t => String(t || '').toLowerCase().replace(/[\u{1F000}-\u{1FFFF}☀-➿️]/gu, '').replace(/\s+/g, ' ').trim();
+const _ajudaOrdem = AJUDA.slice().sort((a, b) => b[0].length - a[0].length); // o mais específico ganha
+function textoAjuda(el) {
+  const t = _ajudaNorm(Array.from(el.childNodes).filter(n => n.nodeType === 3 || (n.nodeType === 1 && !n.classList.contains('tag') && !n.classList.contains('ajuda') && n.tagName !== 'BUTTON' && n.tagName !== 'INPUT')).map(n => n.textContent).join(' '));
+  if (!t) return null;
+  const achado = _ajudaOrdem.find(([k]) => t.startsWith(k));
+  return achado ? achado[1] : null;
+}
+function colocarAjudas(raiz) {
+  (raiz || document).querySelectorAll('.card h2, .kpi .l, .mini-kpis .l, th, .titulo-aba').forEach(el => {
+    if (el.querySelector(':scope > .ajuda') || el.closest('.titulos')) return;
+    const txt = textoAjuda(el); if (!txt) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ajuda'; b.textContent = '?'; b.setAttribute('aria-label', 'O que é isso?'); b.dataset.txt = txt;
+    const tag = el.querySelector(':scope > .tag');
+    if (tag) el.insertBefore(b, tag); else el.appendChild(b);
+  });
+}
+const balao = document.createElement('div'); balao.className = 'balao'; balao.setAttribute('role', 'dialog'); document.body.appendChild(balao);
+function fecharBalao() { balao.classList.remove('on'); }
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.ajuda');
+  if (!b) { if (!e.target.closest || !e.target.closest('.balao')) fecharBalao(); return; }
+  e.stopPropagation(); e.preventDefault();
+  if (balao.classList.contains('on') && balao._de === b) return fecharBalao();
+  balao._de = b; balao.innerHTML = '<div>' + esc(b.dataset.txt) + '</div><button type="button" class="link" onclick="this.parentNode.classList.remove(\'on\')">entendi</button>';
+  balao.classList.add('on');
+  const r = b.getBoundingClientRect(), w = Math.min(320, innerWidth - 24);
+  balao.style.width = w + 'px';
+  balao.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 12)) + 'px';
+  const abaixo = r.bottom + 10 + balao.offsetHeight < innerHeight;
+  balao.style.top = (abaixo ? r.bottom + 8 : Math.max(8, r.top - balao.offsetHeight - 8)) + 'px';
+}, true);
+addEventListener('scroll', fecharBalao, { passive: true });
+new MutationObserver(() => { clearTimeout(colocarAjudas._t); colocarAjudas._t = setTimeout(() => colocarAjudas(document.getElementById('app')), 60); })
+  .observe(document.getElementById('app'), { childList: true, subtree: true });
+
+// ───────────────────────── 🧭 TRILHA ─────────────────────────
+// Passo a passo do Radar. Cada passo se marca sozinho quando você faz a ação.
+function marcarTrilha(chave) { const t = ls.get('radar_trilha', {}); if (!t[chave]) { t[chave] = Date.now(); ls.set('radar_trilha', t); atualizarSeloTrilha(); } }
+let _trilhaExtra = { catalogo: null, concorrentes: null, loja: null };
+const PASSOS = [
+  { id: 'pesquisa', titulo: 'Faça a primeira pesquisa', como: 'Digite o nome do produto como o cliente procura (ex.: "fita dupla face para espelho") na barra lá em cima e toque em Pesquisar.', feito: () => S.hist.length > 0, ir: () => { irPara('pesquisar'); destacar('#q'); } },
+  { id: 'custo', titulo: 'Coloque o custo, o peso e as medidas', como: 'Na pesquisa, no card "Vale a pena?", preencha o custo de produção, a embalagem, o peso embalado e as medidas da caixa. Toque em Salvar.', feito: () => Object.values(cfg().custos || {}).some(c => c.custo > 0), ir: () => irParaPesquisa('#card-margem') },
+  { id: 'onde', titulo: 'Veja onde vender', como: 'Leia o card "Onde vender": ele mostra o melhor canal e os motivos a favor e contra cada um.', feito: () => !!ls.get('radar_trilha', {}).onde, ir: () => irParaPesquisa('#card-onde') },
+  { id: 'preco', titulo: 'Defina o seu preço', como: 'No card "Preço ideal", veja a faixa dos concorrentes e o preço sugerido para cada canal. Ajuste na tabela da margem se quiser.', feito: () => !!ls.get('radar_trilha', {}).preco, ir: () => irParaPesquisa('#card-preco') },
+  { id: 'catalogo', titulo: 'Monte o catálogo com as suas variações', como: 'Na aba Catálogo, cadastre o produto e cada variação (largura, comprimento) com custo e peso. Depois toque em "Pesquisar as não pesquisadas".', feito: () => _trilhaExtra.catalogo === true || !!ls.get('radar_trilha', {}).catalogo, ir: () => irPara('catalogo') },
+  { id: 'anuncio', titulo: 'Gere o anúncio pronto', como: 'Na pesquisa, no card "Anúncio pronto", escreva os dados do produto (marca, material, medidas) e toque em Gerar. Copie para o marketplace.', feito: () => !!ls.get('radar_trilha', {}).anuncio, ir: () => irParaPesquisa('#card-titulos') },
+  { id: 'vigiar', titulo: 'Vigie o mercado', como: 'Toque em 🔔 Vigiar numa pesquisa e cole o link de 2 ou 3 concorrentes na aba Vigiadas. Toda segunda o Radar checa e avisa o que mudou.', feito: () => (cfg().vigiadas || []).length > 0 || _trilhaExtra.concorrentes === true, ir: () => irPara('vigiadas') },
+  { id: 'datas', titulo: 'Planeje as datas', como: 'Na aba Calendário, informe quantas unidades vende por mês e veja até quando produzir para cada data (Black Friday, Natal...).', feito: () => !!ls.get('radar_trilha', {}).datas, ir: () => irPara('calendario') },
+  { id: 'taxas', titulo: 'Confira as taxas do seu caso', como: 'Na aba Taxas, compare com o seu painel de vendedor (comissão da sua categoria, imposto do seu regime) e salve. Todo o time usa esses valores.', feito: () => !!ls.get('radar_trilha', {}).taxas, ir: () => irPara('taxas') },
+  { id: 'loja', titulo: 'Conecte a sua loja do Mercado Livre', como: 'Na aba Minha loja, siga os passos para conectar (só leitura). Você passa a ver as suas vendas, visitas e conversão reais.', feito: () => _trilhaExtra.loja === true, ir: () => irPara('loja') },
+  { id: 'relatorio', titulo: 'Compartilhe um relatório', como: 'Na pesquisa, toque em 🔗 Compartilhar relatório e mande o link para o sócio ou cliente. Abre sem senha e vira PDF.', feito: () => !!ls.get('radar_trilha', {}).relatorio, ir: () => irParaPesquisa('#bt-compartilhar') },
+];
+function irParaPesquisa(sel) {
+  if (S.atual) { irPara('pesquisar'); destacar(sel); return; }
+  const h = S.hist[0]; if (!h) { irPara('pesquisar'); destacar('#q'); return; }
+  abrir(h.termo).then(() => destacar(sel));
+}
+function destacar(sel) {
+  setTimeout(() => { const el = document.querySelector(sel); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('destaque'); setTimeout(() => el.classList.remove('destaque'), 2600); }, 250);
+}
+function progressoTrilha() { const f = PASSOS.filter(p => { try { return p.feito(); } catch (e) { return false; } }); return { feitos: f.length, total: PASSOS.length, proximo: PASSOS.find(p => !f.includes(p)) }; }
+function atualizarSeloTrilha() {
+  const b = document.querySelector('#nav button[data-aba="trilha"]'); if (!b) return;
+  const pr = progressoTrilha(); let s = b.querySelector('.selo'); if (!s) { s = document.createElement('i'); s.className = 'selo'; b.appendChild(s); }
+  s.textContent = pr.feitos + '/' + pr.total; s.classList.toggle('ok', pr.feitos === pr.total);
+}
+async function pintarTrilha() {
+  const box = $('#aba-trilha');
+  // descobre o que depende do servidor (catálogo, concorrentes, loja) sem travar a tela
+  Promise.all([
+    api('/api/catalogo').then(r => { _trilhaExtra.catalogo = (r.produtos || []).length > 0; }).catch(() => {}),
+    api('/api/concorrentes').then(r => { _trilhaExtra.concorrentes = (r.itens || []).length > 0; }).catch(() => {}),
+    api('/api/ml-conta').then(r => { _trilhaExtra.loja = !!r.conectado; }).catch(() => {}),
+  ]).then(() => { if (abaAtual === 'trilha') desenharTrilha(); atualizarSeloTrilha(); });
+  desenharTrilha();
+  function desenharTrilha() {
+    const pr = progressoTrilha();
+    box.innerHTML = '<h1 class="titulo-aba">Trilha do Radar</h1><p class="sub-aba">O caminho do “será que vende?” até o anúncio no ar. Cada passo se marca sozinho quando você faz.</p>' +
+      '<div class="card" style="margin-top:14px"><div class="trilha-topo"><b>' + pr.feitos + ' de ' + pr.total + ' passos</b>' + (pr.proximo ? '<span class="muted small">Próximo: ' + esc(pr.proximo.titulo) + '</span>' : '<span class="var-pos">🎉 Trilha completa!</span>') + '</div>' +
+      '<div class="progresso"><span style="width:' + (pr.feitos / pr.total * 100) + '%"></span></div>' +
+      '<ol class="trilha">' + PASSOS.map((p, i) => { let ok = false; try { ok = p.feito(); } catch (e) {} const prox = pr.proximo === p;
+        return '<li class="' + (ok ? 'feito' : prox ? 'agora' : '') + '"><span class="trilha-n">' + (ok ? '✓' : i + 1) + '</span><div><b>' + esc(p.titulo) + '</b><div class="small muted">' + esc(p.como) + '</div></div><button type="button" class="' + (prox ? 'pri' : 'sec') + '" data-passo="' + p.id + '">' + (ok ? 'Ver' : 'Fazer agora') + '</button></li>'; }).join('') + '</ol>' +
+      '<p class="aviso">Dica: em qualquer tela, toque no <span class="ajuda" style="pointer-events:none">?</span> ao lado de um título ou número para ver o que ele significa.</p></div>';
+    $$('[data-passo]').forEach(b => b.onclick = () => PASSOS.find(p => p.id === b.dataset.passo).ir());
+  }
+}
+
+// cards lidos (Onde vender, Preço ideal) contam na trilha quando aparecem na tela
+const _visto = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { marcarTrilha(e.target.id === 'card-onde' ? 'onde' : 'preco'); _visto.unobserve(e.target); } }), { threshold: 0.5 });
+new MutationObserver(() => ['#card-onde', '#card-preco'].forEach(sel => { const el = document.querySelector(sel); if (el && !el._obs) { el._obs = 1; _visto.observe(el); } }))
+  .observe(document.getElementById('app'), { childList: true, subtree: true });
 
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas'].includes(aba0)) irPara(aba0); }
+function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha'].includes(aba0)) irPara(aba0); else primeiraVez(); }
 })();
