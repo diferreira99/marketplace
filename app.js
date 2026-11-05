@@ -299,12 +299,14 @@ function pintarResultado(d, salvo) {
     '<div class="card"><h2>🔎 SEO · Top 10 do Google <span class="tag">' + s.marketplacesNoTop + ' marketplaces no top</span></h2>' +
       (s.organicos.length ? '<ul class="org">' + s.organicos.map(o => '<li><span class="pos">' + (o.posicao || '') + '</span><div><a href="' + esc(o.link) + '" target="_blank" rel="noopener">' + esc(o.titulo) + '</a><div class="dom">' + esc(dom(o.link)) + '</div></div></li>').join('') + '</ul>' : '<div class="vazio">Sem resultados orgânicos.</div>') + '</div>' +
     '<div class="card"><h2>📈 Demanda: o que as pessoas buscam</h2>' +
+      '<button type="button" class="pri" id="bt-ir-palavras" style="width:100%;margin-bottom:12px">⚡ Comparar todas estas palavras e ver qual performa melhor</button>' +
       '<div class="small muted" style="margin-bottom:6px">Autocompletar do Google (toque para pesquisar)</div><div class="chips">' + (s.sugestoes.length ? s.sugestoes.map(x => '<button type="button" class="chip" data-pesq="' + esc(x) + '">' + esc(x) + '</button>').join('') : '<span class="muted small">Nenhuma sugestão.</span>') + '</div>' +
       seoInterno(s.internas) +
       '<div class="small muted" style="margin:14px 0 6px">Pesquisas relacionadas</div><div class="chips">' + (s.relacionadas.length ? s.relacionadas.map(x => '<button type="button" class="chip" data-pesq="' + esc(x) + '">' + esc(x) + '</button>').join('') : '<span class="muted small">Nenhuma.</span>') + '</div>' +
       (s.perguntas.length ? '<div class="small muted" style="margin:14px 0 6px">As pessoas também perguntam</div><div class="paa">' + s.perguntas.map(p => '<details><summary>' + esc(p.pergunta) + '</summary><p class="small">' + esc(p.resposta || '') + '</p></details>').join('') + '</div>' : '') +
     '</div>' +
-  '</div>';
+  '</div>' +
+  '<div class="card" style="margin-top:14px" id="card-palavras"></div>';
   $$('[data-pesq]').forEach(b => b.onclick = () => { $('#q').value = b.dataset.pesq; pesquisar(b.dataset.pesq); });
   $('#bt-atualizar').onclick = () => pesquisar(d.termo, true);
   $('#bt-vigiar').onclick = () => alternarVigia(d.termo);
@@ -314,6 +316,65 @@ function pintarResultado(d, salvo) {
   pintarSerie(d.termo);
   pintarAvaliacoes(d);
   pintarFotos(d);
+  pintarPalavras(d);
+  $('#bt-ir-palavras').onclick = () => destacar('#card-palavras');
+}
+
+// ⚡ Comparar palavras-chave: pesquisa todas as variações de uma vez e diz qual tem mais força
+function pintarPalavras(d) {
+  const box = $('#card-palavras'); if (!box || !window.Palavras) return;
+  const chave = 'radar_palavras_' + slug(d.termo), salvo = ls.get(chave, null);
+  const todas = Palavras.juntar(d), MAX = 20;
+  const recente = t => { const h = S.hist.find(x => slug(x.termo) === slug(t)); return h && Date.now() - new Date(h.em).getTime() < 6 * 3600 * 1000; };
+  const NOMES = { sua: 'sua', google: 'Google', mercadolivre: 'ML', amazon: 'Amazon', relacionada: 'relac.' };
+  const cabeca = '<h2>⚡ Qual palavra-chave performa melhor <span class="tag">' + todas.length + ' palavras encontradas</span></h2>';
+  if (salvo && salvo.lista && salvo.lista.length && !box._escolher) return desenharRanking(salvo);
+  box.innerHTML = cabeca +
+    '<p class="small muted">Marque as palavras e o Radar pesquisa todas sozinho (Mercado Livre, Shopee, Amazon e Google) e monta o ranking. Vem marcado o que aparece em mais lugares.</p>' +
+    '<div class="pal-sel">' + todas.map((x, i) => '<label class="pal-op"><input type="checkbox" data-pal="' + i + '"' + (i < 15 ? ' checked' : '') + '><span>' + esc(x.termo) + '</span><span class="pal-f">' + x.fontes.map(f => '<i>' + NOMES[f] + '</i>').join('') + '</span></label>').join('') + '</div>' +
+    '<div class="pal-acoes"><button type="button" class="pri" id="pal-ir">Pesquisar e comparar</button><button type="button" class="link" id="pal-todas">marcar tudo</button><button type="button" class="link" id="pal-nenhuma">desmarcar</button><span class="small muted" id="pal-custo"></span></div>' +
+    '<div class="progresso hidden" id="pal-prog"><span style="width:0"></span></div><div class="small muted" id="pal-est"></div>' +
+    (salvo && salvo.lista ? '<button type="button" class="link" id="pal-voltar">← ver o último ranking</button>' : '');
+  const marcadas = () => $$('[data-pal]').filter(c => c.checked).map(c => todas[+c.dataset.pal]);
+  const custo = () => { const m = marcadas(), novas = m.filter(x => !recente(x.termo)).length;
+    $('#pal-custo').textContent = m.length > MAX ? '⚠️ no máximo ' + MAX + ' de cada vez' : m.length + ' palavras · ' + (novas ? novas * 6 + ' créditos (' + novas + ' novas)' : 'sem gastar crédito');
+    $('#pal-ir').disabled = !m.length || m.length > MAX; };
+  $$('[data-pal]').forEach(c => c.onchange = custo); custo();
+  $('#pal-todas').onclick = () => { $$('[data-pal]').forEach((c, i) => c.checked = i < MAX); custo(); };
+  $('#pal-nenhuma').onclick = () => { $$('[data-pal]').forEach(c => c.checked = false); custo(); };
+  if ($('#pal-voltar')) $('#pal-voltar').onclick = () => { box._escolher = false; pintarPalavras(d); };
+  $('#pal-ir').onclick = async () => {
+    const m = marcadas(), novas = m.filter(x => !recente(x.termo)).length;
+    if (novas && !confirm('Vou pesquisar ' + m.length + ' palavras. Gasta cerca de ' + novas * 6 + ' créditos do Serper. Continuar?')) return;
+    $('#pal-ir').disabled = true; $('#pal-prog').classList.remove('hidden');
+    const itens = [];
+    for (let i = 0; i < m.length; i++) {
+      $('#pal-est').textContent = 'Pesquisando ' + (i + 1) + ' de ' + m.length + ': ' + m[i].termo;
+      try {
+        const r = slug(m[i].termo) === slug(d.termo) ? d : await api('/api/pesquisa', { method: 'POST', body: JSON.stringify({ termo: m[i].termo }) });
+        if (r !== d) guardar(r);
+        itens.push({ termo: m[i].termo, fontes: m[i].fontes, forca: Palavras.forca(r, m[i].fontes) });
+      } catch (e) { itens.push({ termo: m[i].termo, fontes: m[i].fontes, erro: e.message }); if (e.status === 401) break; }
+      $('#pal-prog').firstChild.style.width = ((i + 1) / m.length * 100) + '%';
+    }
+    const res = Palavras.ranking(itens); res.erros = itens.filter(x => x.erro); res.em = new Date().toISOString();
+    ls.set(chave, res); box._escolher = false; desenharRanking(res); marcarTrilha('palavras');
+  };
+  function desenharRanking(r) {
+    const b = r.melhor, PARTES = [['busca', 'Busca', 40], ['vendas', 'Vendas', 40], ['concorrencia', 'Concorrência', 20]];
+    box.innerHTML = cabeca +
+      (b ? '<div class="onde-topo"><div style="font-size:1.8rem">🥇</div><div><div class="onde-v">' + esc(b.termo) + ' <span class="badge">' + b.forca.total + '/100</span></div><div class="small">É a palavra mais forte: use no começo do título do anúncio. ' + (b.forca.maxVendidos ? 'O anúncio que mais vende com ela tem ' + num(b.forca.maxVendidos) + '+ vendas.' : '') + '</div></div></div>' : '') +
+      barrasH(r.lista.slice(0, 12).map(x => ({ rotulo: x.termo, valor: x.forca.total, termo: x.termo, cor: 'var(--brand)', dica: '<b>' + esc(x.termo) + ': ' + x.forca.total + '/100</b><br>' + PARTES.map(([k, n, mx]) => n + ': ' + x.forca.partes[k] + '/' + mx).join('<br>') })), { max: 100 }) +
+      '<div class="tabela-wrap"><table><thead><tr><th>Palavra-chave</th><th class="num">Força</th><th class="num">Busca</th><th class="num">Vendas</th><th class="num">Mais vendido</th><th class="num">Anúncios</th><th>Concorrência</th><th class="num">Preço comum</th><th>Usar no</th></tr></thead><tbody>' +
+      r.lista.map((x, i) => '<tr class="clic" data-abrir="' + esc(x.termo) + '"><td><b>' + (i < 3 ? ['🥇', '🥈', '🥉'][i] + ' ' : '') + esc(x.termo) + '</b><div class="small muted">' + x.fontes.map(f => NOMES[f]).join(' · ') + '</div></td><td class="num"><b>' + x.forca.total + '</b></td><td class="num">' + x.forca.partes.busca + '</td><td class="num">' + x.forca.partes.vendas + '</td><td class="num">' + (x.forca.maxVendidos ? num(x.forca.maxVendidos) + '+' : '—') + '</td><td class="num">' + x.forca.anuncios + '</td><td>' + esc(x.forca.concorrencia) + '</td><td class="num">' + brl(x.forca.preco) + '</td><td>' + esc(x.uso) + '</td></tr>').join('') +
+      '</tbody></table></div>' +
+      (r.termos.length ? '<div class="small muted" style="margin:14px 0 6px">Palavras que mais se repetem nas melhores buscas: coloque no título e na descrição</div><div class="chips">' + r.termos.map(w => '<span class="chip">' + esc(w) + '</span>').join('') + '</div>' : '') +
+      (r.lista.length >= 2 ? '<p class="aviso">Sugestão de título: comece com <b>' + esc(r.lista[0].termo) + '</b> e complete com <b>' + esc(r.lista.slice(1, 3).map(x => x.termo).join(' / ')) + '</b>, sem repetir palavra. As demais vão na descrição e na ficha técnica.</p>' : '') +
+      (r.erros && r.erros.length ? '<p class="small muted">Não deu: ' + r.erros.map(x => esc(x.termo)).join(' · ') + '</p>' : '') +
+      '<p class="small muted">Força = busca (aparece no autocompletar do Google, ML e Amazon; até 40) + vendas (o anúncio que mais vende com essa palavra; até 40) + concorrência (menos disputa, até 20). Comparado em ' + dataBR(r.em) + '. <button type="button" class="link" id="pal-refazer">Comparar de novo</button></p>';
+    $$('#card-palavras [data-abrir]').forEach(tr => tr.onclick = () => abrir(tr.dataset.abrir));
+    $('#pal-refazer').onclick = () => { box._escolher = true; pintarPalavras(d); };
+  }
 }
 
 // 🔎 SEO interno: o que é digitado dentro do Mercado Livre e da Amazon
@@ -940,6 +1001,12 @@ const AJUDA = [
   ['o que a concorrência vende', 'Fotos dos produtos dos concorrentes no Google Shopping. Toque para abrir o anúncio.'],
   ['evolução no tempo', 'Como o preço mais comum e a nota mudaram a cada checagem. Aparece quando a palavra é vigiada ou foi pesquisada mais de uma vez.'],
   ['seo', 'As 10 primeiras páginas do Google para essa palavra. Muitos marketplaces no topo = o povo busca para comprar.'],
+  ['qual palavra-chave performa melhor', 'Pesquisa de uma vez todas as variações que o povo digita (Google, Mercado Livre, Amazon) e dá uma força de 0 a 100 para cada uma: busca (até 40) + vendas do anúncio que mais vende (até 40) + pouca concorrência (até 20). A 1ª vai no começo do título.'],
+  ['força', 'Nota de 0 a 100 da palavra para SEO: quanto o povo busca, quanto vende e quanta disputa tem.'],
+  ['busca', 'Até 40: em quantos autocompletares (Google, ML, Amazon) a palavra aparece e quantas variações ela própria puxa.'],
+  ['vendas', 'Até 40: pelo anúncio que mais vende com essa palavra (5.000+ vendidos = 40).'],
+  ['mais vendido', 'Quantas vendas tem o anúncio que mais vende com essa palavra-chave.'],
+  ['usar no', 'Onde colocar a palavra no seu anúncio: título (as mais fortes), descrição e ficha técnica (as médias).'],
   ['demanda', 'O que as pessoas digitam no Google, na busca do Mercado Livre e da Amazon. Use essas variações nos títulos e na descrição: é assim que o cliente acha o anúncio.'],
   ['o que os compradores reclamam', 'Lê as avaliações dos anúncios concorrentes no Mercado Livre e agrupa as reclamações por tema. O que eles erram é o que você pode fazer melhor no produto e deixar claro no anúncio.'],
   ['fotos do anúncio', 'Regras de foto de cada canal e pedidos prontos para gerar imagens com IA (capa, uso real, medidas, prova de força).'],
@@ -1031,6 +1098,7 @@ const PASSOS = [
   { id: 'custo', titulo: 'Coloque o custo, o peso e as medidas', como: 'Na pesquisa, no card "Vale a pena?", preencha o custo de produção, a embalagem, o peso embalado e as medidas da caixa. Toque em Salvar.', feito: () => Object.values(cfg().custos || {}).some(c => c.custo > 0), ir: () => irParaPesquisa('#card-margem') },
   { id: 'onde', titulo: 'Veja onde vender', como: 'Leia o card "Onde vender": ele mostra o melhor canal e os motivos a favor e contra cada um.', feito: () => !!ls.get('radar_trilha', {}).onde, ir: () => irParaPesquisa('#card-onde') },
   { id: 'preco', titulo: 'Defina o seu preço', como: 'No card "Preço ideal", veja a faixa dos concorrentes e o preço sugerido para cada canal. Ajuste na tabela da margem se quiser.', feito: () => !!ls.get('radar_trilha', {}).preco, ir: () => irParaPesquisa('#card-preco') },
+  { id: 'palavras', titulo: 'Descubra a palavra-chave mais forte', como: 'Na pesquisa, no card "Qual palavra-chave performa melhor", marque as variações e toque em Pesquisar e comparar. A 1ª do ranking vai no começo do título.', feito: () => !!ls.get('radar_trilha', {}).palavras, ir: () => irParaPesquisa('#card-palavras') },
   { id: 'catalogo', titulo: 'Monte o catálogo com as suas variações', como: 'Na aba Catálogo, cadastre o produto e cada variação (largura, comprimento) com custo e peso. Depois toque em "Pesquisar as não pesquisadas".', feito: () => _trilhaExtra.catalogo === true || !!ls.get('radar_trilha', {}).catalogo, ir: () => irPara('catalogo') },
   { id: 'anuncio', titulo: 'Gere o anúncio pronto', como: 'Na pesquisa, no card "Anúncio pronto", escreva os dados do produto (marca, material, medidas) e toque em Gerar. Copie para o marketplace.', feito: () => !!ls.get('radar_trilha', {}).anuncio, ir: () => irParaPesquisa('#card-titulos') },
   { id: 'vigiar', titulo: 'Vigie o mercado', como: 'Toque em 🔔 Vigiar numa pesquisa e cole o link de 2 ou 3 concorrentes na aba Vigiadas. Toda segunda o Radar checa e avisa o que mudou.', feito: () => (cfg().vigiadas || []).length > 0 || _trilhaExtra.concorrentes === true, ir: () => irPara('vigiadas') },

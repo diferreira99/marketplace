@@ -267,3 +267,11 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .trilha li.feito .trilha-n{background:#1f9d55;color:#fff}
 .trilha li.agora .trilha-n{background:#f5a524;color:#fff}
 @media (max-width:640px){.trilha li{grid-template-columns:30px 1fr}.trilha li button{grid-column:1/-1}}
+
+/* ⚡ comparar palavras-chave */
+.pal-sel{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;margin:10px 0;max-height:340px;overflow:auto}
+.pal-op{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;font-size:.85rem;cursor:pointer;min-width:0}
+.pal-op span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pal-op input{width:auto;margin:0}
+.pal-f{display:flex;gap:3px}.pal-f i{font-style:normal;font-size:.65rem;font-weight:700;padding:1px 5px;border-radius:6px;background:var(--line);color:var(--muted)}
+.pal-acoes{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
