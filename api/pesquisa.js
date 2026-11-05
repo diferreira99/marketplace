@@ -4,6 +4,7 @@
 const { analisar, MARKETPLACES } = require('../lib/analise');
 const { senhaOk, exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
+const { sugestoesMarketplaces } = require('../lib/seointerno');
 
 const SERPER = 'https://google.serper.dev';
 const CACHE_MS = 6 * 60 * 60 * 1000;          // mesma palavra em 6 h não gasta crédito de novo
@@ -33,6 +34,7 @@ async function pesquisar(termo, chave, fetcher = fetch) {
   for (const [mp, info] of Object.entries(MARKETPLACES)) {
     tarefas[mp] = serper('/search', { q: `${q} site:${info.dominio}`, num: 10 }, chave, fetcher);
   }
+  const internas = sugestoesMarketplaces(q, fetcher);     // grátis: autocompletar do ML e da Amazon
   const nomes = Object.keys(tarefas);
   const res = await Promise.allSettled(Object.values(tarefas));
   const respostas = {}, falhas = [];
@@ -45,6 +47,7 @@ async function pesquisar(termo, chave, fetcher = fetch) {
     e.status = falhas[0].status === 401 || falhas[0].status === 403 ? 502 : 503;
     throw e;
   }
+  respostas.internas = await internas.catch(() => ({}));
   return { ...analisar(q, respostas), falhas, creditos: nomes.length - falhas.length };
 }
 

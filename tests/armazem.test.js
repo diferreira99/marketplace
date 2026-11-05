@@ -87,7 +87,7 @@ test('pesquisa compartilhada: 2ª pessoa recebe da nuvem sem gastar Serper', asy
   process.env.SERPER_API_KEY = 'CHAVE-FALSA';
   const arm = criar(blobFalso());
   let chamadasSerper = 0;
-  const fetch = async (u, o) => { chamadasSerper++; return fetcherFx(u, o); };
+  const fetch = async (u, o) => { if (String(u).includes("serper")) chamadasSerper++; return fetcherFx(u, o); };
   const termo = 'termo unico ' + Date.now();
   let r = resFalsa();
   await pesquisa({ method: 'POST', headers: { 'x-senha': 'segredo-teste' }, body: { termo } }, r, { armazem: arm, fetch });

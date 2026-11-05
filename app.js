@@ -271,6 +271,7 @@ function pintarResultado(d, salvo) {
       ((d.falhas || []).length ? '<div class="aviso">⚠️ Não vieram: ' + d.falhas.map(f => esc(f.fonte)).join(', ') + '</div>' : '') +
     '</div>' +
   '</div>' +
+  '<div class="card" style="margin-top:14px" id="card-onde"></div>' +
   '<div class="card" style="margin-top:14px" id="card-margem"></div>' +
   '<div class="grid g3">' + cardMp('mercadolivre', mp.mercadolivre) + cardMp('shopee', mp.shopee) + cardMp('amazon', mp.amazon) + '</div>' +
   '<div class="card" style="margin-top:14px" id="card-titulos"><h2>✍️ Títulos de anúncio <span class="tag">a partir das buscas reais e dos concorrentes</span></h2><button type="button" class="sec" id="bt-titulos">Gerar títulos para os 3 canais</button><div id="titulos-saida"></div></div>' +
@@ -289,6 +290,7 @@ function pintarResultado(d, salvo) {
       (s.organicos.length ? '<ul class="org">' + s.organicos.map(o => '<li><span class="pos">' + (o.posicao || '') + '</span><div><a href="' + esc(o.link) + '" target="_blank" rel="noopener">' + esc(o.titulo) + '</a><div class="dom">' + esc(dom(o.link)) + '</div></div></li>').join('') + '</ul>' : '<div class="vazio">Sem resultados orgânicos.</div>') + '</div>' +
     '<div class="card"><h2>📈 Demanda: o que as pessoas buscam</h2>' +
       '<div class="small muted" style="margin-bottom:6px">Autocompletar do Google (toque para pesquisar)</div><div class="chips">' + (s.sugestoes.length ? s.sugestoes.map(x => '<button type="button" class="chip" data-pesq="' + esc(x) + '">' + esc(x) + '</button>').join('') : '<span class="muted small">Nenhuma sugestão.</span>') + '</div>' +
+      seoInterno(s.internas) +
       '<div class="small muted" style="margin:14px 0 6px">Pesquisas relacionadas</div><div class="chips">' + (s.relacionadas.length ? s.relacionadas.map(x => '<button type="button" class="chip" data-pesq="' + esc(x) + '">' + esc(x) + '</button>').join('') : '<span class="muted small">Nenhuma.</span>') + '</div>' +
       (s.perguntas.length ? '<div class="small muted" style="margin:14px 0 6px">As pessoas também perguntam</div><div class="paa">' + s.perguntas.map(p => '<details><summary>' + esc(p.pergunta) + '</summary><p class="small">' + esc(p.resposta || '') + '</p></details>').join('') + '</div>' : '') +
     '</div>' +
@@ -299,6 +301,34 @@ function pintarResultado(d, salvo) {
   $('#bt-titulos').onclick = () => gerarTitulos(d);
   pintarMargem(d);
   pintarSerie(d.termo);
+}
+
+// 🔎 SEO interno: o que é digitado dentro do Mercado Livre e da Amazon
+function seoInterno(internas) {
+  if (!internas) return '';
+  const bloco = (k, lista) => '<div class="small muted" style="margin:14px 0 6px">' + logo(k) + ' Buscado dentro do ' + CANAIS[k].nome + '</div>' +
+    (lista == null ? '<span class="muted small">O ' + CANAIS[k].nome + ' não respondeu agora. Tente ↻ Atualizar mais tarde.</span>'
+      : lista.length ? '<div class="chips">' + lista.map(x => '<button type="button" class="chip" data-pesq="' + esc(x) + '">' + esc(x) + '</button>').join('') + '</div>'
+      : '<span class="muted small">Nenhuma variação sugerida lá dentro.</span>');
+  return bloco('mercadolivre', internas.mercadolivre) + bloco('amazon', internas.amazon) +
+    '<div class="small muted" style="margin-top:8px">' + logo('shopee') + ' A Shopee não abre a busca dela para consulta: para ela usamos os sinais do Google.</div>';
+}
+
+// 🏆 Onde vender
+function pintarOnde(d, margens) {
+  const box = $('#card-onde'); if (!box || !window.Recomendacao) return;
+  const r = Recomendacao.recomendar(d, margens);
+  const v = r.ranking[0], PARTES = [['demanda', 'Demanda', 40], ['concorrencia', 'Espaço na concorrência', 15], ['preco', 'Preço no canal', 15], ['margem', 'Margem com seu custo', 30]];
+  box.innerHTML = '<h2>🏆 Onde vender <span class="tag">nota de 0 a 100 por canal</span></h2>' +
+    '<div class="onde-topo">' + (r.vencedor ? logo(v.id, true) + '<div><div class="onde-v">Melhor canal: ' + esc(v.nome) + ' <span class="badge">' + v.nota + '/100</span></div><div class="small">' + esc(r.estrategia) + '</div></div>'
+      : '<div><div class="onde-v">Nenhum canal se destaca</div><div class="small">' + esc(r.estrategia) + '</div></div>') + '</div>' +
+    (r.semCusto ? '<p class="small muted">⚠️ Sem o custo de produção, a margem entra neutra. Preencha o custo na calculadora logo abaixo e a recomendação se ajusta na hora.</p>' : '') +
+    barrasH(r.ranking.map(x => ({ rotulo: x.nome, valor: x.nota, cor: CANAIS[x.id].cor, dica: '<b>' + esc(x.nome) + ': ' + x.nota + '/100</b><br>' + PARTES.map(([k, n, m]) => n + ': ' + x.partes[k] + '/' + m).join('<br>') })), { max: 100 }) +
+    '<div class="grid g3">' + r.ranking.map((x, i) => '<div class="onde-canal' + (i === 0 && r.vencedor ? ' melhor' : '') + '"><div class="onde-c">' + logo(x.id) + ' <b>' + esc(x.nome) + '</b><span class="badge" style="margin-left:auto">' + x.nota + '</span></div>' +
+      '<div class="onde-partes">' + PARTES.map(([k, n, m]) => '<div data-tip="' + esc(n + ': ' + x.partes[k] + ' de ' + m) + '"><span>' + n + '</span><span class="onde-trilho"><span style="width:' + (x.partes[k] / m * 100) + '%"></span></span><b>' + x.partes[k] + '/' + m + '</b></div>').join('') + '</div>' +
+      (x.pros.length ? '<ul class="onde-lista pros">' + x.pros.map(p => '<li>✔ ' + esc(p) + '</li>').join('') + '</ul>' : '') +
+      (x.contras.length ? '<ul class="onde-lista contras">' + x.contras.map(p => '<li>✖ ' + esc(p) + '</li>').join('') + '</ul>' : '') + '</div>').join('') + '</div>' +
+    '<p class="aviso">Como a nota é feita: demanda (anúncios, vendas e busca dentro do canal) até 40 · espaço na concorrência até 15 · preço praticado no canal até 15 · margem com o seu custo até 30.</p>';
 }
 
 // 💰 Calculadora de margem
@@ -317,6 +347,7 @@ function pintarMargem(d) {
   function calc() {
     const custo = Number($('#m-custo').value) || 0, emb = Number($('#m-emb').value) || 0;
     const r = Margem.calcular({ precos, custo, embalagem: emb, imposto: c.imposto, margemAlvo: c.margemAlvo, taxas: c.taxas });
+    pintarOnde(d, custo ? { mercadolivre: r.mercadolivre, shopee: r.shopee, amazon: r.amazon } : null);
     const linhas = Object.entries(r);
     $('#m-saida').innerHTML = (custo ? '' : '<p class="small muted">Digite o custo de produção para ver o lucro de verdade. Os preços já vêm da mediana de cada canal, e você pode mudar.</p>') +
       '<div class="tabela-wrap"><table><thead><tr><th>Canal</th><th class="num">Preço de venda</th><th class="num">Comissão</th><th class="num">Taxa fixa</th><th class="num">Frete</th><th class="num">Imposto</th><th class="num">Custo</th><th class="num">Lucro / un.</th><th class="num">Margem</th><th class="num">Preço p/ ' + pct(c.margemAlvo) + '</th></tr></thead><tbody>' +
