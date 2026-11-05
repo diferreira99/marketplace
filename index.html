@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar Marketplace</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<style>
+:root{
+  --bg:#f4f6fb; --card:#ffffff; --ink:#151a2d; --muted:#667085; --line:#e4e7ef;
+  --brand:#4f46e5; --brand-soft:#eef0ff; --ok:#12a150; --warn:#d98a00; --bad:#d92d20;
+  --ml:#ffe600; --ml-ink:#2d3277; --sp:#ee4d2d; --amz:#ff9900; --amz-ink:#131921;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e1220; --card:#171c2e; --ink:#e8ebf5; --muted:#98a2b8; --line:#273049; --brand:#8b85ff; --brand-soft:#232a4a; --shadow:none;
+}}
+:root[data-theme="dark"]{ --bg:#0e1220; --card:#171c2e; --ink:#e8ebf5; --muted:#98a2b8; --line:#273049; --brand:#8b85ff; --brand-soft:#232a4a; --shadow:none; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--brand);text-decoration:none} a:hover{text-decoration:underline}
+.top{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line)}
+.top .in{max-width:1240px;margin:0 auto;padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.logo{font-weight:800;font-size:1.05rem;white-space:nowrap}
+.logo small{display:block;font-weight:500;color:var(--muted);font-size:.72rem}
+form.busca{flex:1;display:flex;gap:8px;min-width:260px}
+form.busca input{flex:1;min-width:0;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:1rem}
+form.busca input:focus{outline:none;border-color:var(--brand)}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);padding:9px 14px}
+button.pri{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+button:disabled{opacity:.6;cursor:default}
+.ic{padding:8px 10px}
+main{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
+.hist{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:.82rem;cursor:pointer;color:var(--ink)}
+.chip b{font-size:.75rem;padding:1px 6px;border-radius:999px;color:#fff}
+.grid{display:grid;gap:14px}
+.g-hero{grid-template-columns:minmax(240px,320px) 1fr}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:900px){ .g-hero,.g3,.g2{grid-template-columns:1fr} }
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.card h2{font-size:.95rem;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 .tag{margin-left:auto;font-size:.72rem;font-weight:600;color:var(--muted)}
+.muted{color:var(--muted)} .small{font-size:.82rem}
+.score{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
+.gauge{width:170px;height:170px}
+.veredito{font-weight:800;font-size:1.1rem}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:640px){ .kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.kpi{background:var(--bg);border-radius:12px;padding:12px}
+.kpi .v{font-size:1.35rem;font-weight:800}
+.kpi .l{font-size:.75rem;color:var(--muted)}
+.motivos{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:.84rem}
+.motivos li{display:flex;gap:8px}
+.motivos .pt{min-width:34px;font-weight:700;color:var(--ok)}
+.motivos .zero{color:var(--muted)}
+.dicas{margin:12px 0 0;padding-left:18px;font-size:.88rem}
+.mp-head{display:flex;align-items:center;gap:10px;margin:-16px -16px 12px;padding:12px 16px;border-radius:14px 14px 0 0}
+.mp-head .n{font-weight:800}
+.mp-head .q{margin-left:auto;font-size:.8rem;font-weight:700}
+.ml .mp-head{background:var(--ml);color:var(--ml-ink)}
+.sp .mp-head{background:var(--sp);color:#fff}
+.az .mp-head{background:var(--amz-ink);color:var(--amz)}
+.mini{display:flex;gap:12px;font-size:.8rem;color:var(--muted);margin-bottom:8px;flex-wrap:wrap}
+.mini b{color:var(--ink)}
+.lista{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:430px;overflow:auto}
+.lista li{border:1px solid var(--line);border-radius:10px;padding:9px 10px}
+.lista .t{font-size:.86rem;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lista .m{display:flex;gap:10px;margin-top:4px;font-size:.78rem;color:var(--muted);flex-wrap:wrap}
+.preco{color:var(--ok);font-weight:800}
+.badge{font-size:.7rem;padding:1px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-weight:700}
+.vazio{padding:18px;text-align:center;color:var(--muted);font-size:.86rem}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.72rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+td.num{white-space:nowrap}
+.tabela-wrap{overflow:auto;max-height:420px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips .chip{cursor:pointer}
+.paa{display:grid;gap:8px}
+.paa details{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.paa summary{cursor:pointer;font-weight:600;font-size:.88rem}
+.org{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.org li{display:flex;gap:10px}
+.org .pos{min-width:24px;height:24px;border-radius:7px;background:var(--bg);display:grid;place-items:center;font-weight:800;font-size:.78rem}
+.org .dom{font-size:.75rem;color:var(--muted)}
+.estado{padding:60px 16px;text-align:center}
+.estado h1{font-size:1.6rem;margin:0 0 8px}
+.carregando{display:inline-block;width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:g 1s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes g{to{transform:rotate(360deg)}}
+.erro{background:#fff1f0;color:#a8071a;border:1px solid #ffccc7;padding:10px 12px;border-radius:10px;margin-bottom:14px}
+.aviso{font-size:.78rem;color:var(--muted);margin-top:6px}
+.comparar td{cursor:pointer}
+.login{max-width:380px;margin:80px auto;text-align:center}
+.login input{width:100%;padding:12px;border:1.5px solid var(--line);border-radius:10px;margin:12px 0;background:var(--bg);color:var(--ink);font-size:1rem}
+.hidden{display:none!important}
+.barra-fx{display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:6px}
+.barra-fx div{flex:1;background:var(--brand);border-radius:6px 6px 0 0;min-height:2px;position:relative}
+.barra-fx div span{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:.7rem;color:var(--muted)}
+.eixo{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <div class="logo">📡 Radar Marketplace<small>Validação de produto · Mercado Livre · Shopee · Amazon · Google</small></div>
+  <form class="busca" id="f">
+    <input id="q" placeholder="Palavra-chave do produto (ex.: fita de borda adesiva)" autocomplete="off" maxlength="120">
+    <button class="pri" id="btn" type="submit">Pesquisar</button>
+  </form>
+  <button class="ic" id="tema" type="button" title="Tema claro/escuro">🌓</button>
+  <button class="ic" id="sair" type="button" title="Sair">🔒</button>
+</div></header>
+
+<section class="login hidden" id="login">
+  <h2>🔒 Acesso ao Radar</h2>
+  <p class="muted small">Digite a senha do painel. Ela fica salva só neste navegador.</p>
+  <input id="senha" type="password" placeholder="Senha" autocomplete="current-password">
+  <button class="pri" id="entrar" type="button" style="width:100%">Entrar</button>
+</section>
+
+<main id="app">
+  <div class="hist" id="hist"></div>
+  <div id="msg"></div>
+  <div id="conteudo">
+    <div class="estado">
+      <h1>Esse produto vende?</h1>
+      <p class="muted">Digite a palavra-chave e veja, num painel só: anúncios no Mercado Livre, Shopee e Amazon,<br>faixa de preço, lojas no Google Shopping, sinais de demanda no Google e uma nota de validação.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const brl = v => v == null ? '—' : 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+const num = v => v == null ? '—' : Number(v).toLocaleString('pt-BR');
+const ls = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} }
+};
+const COR = { validado:'var(--ok)', nicho:'var(--warn)', fraco:'var(--bad)' };
+const NOME = { validado:'🟢 Validado', nicho:'🟡 Nicho / moderado', fraco:'🔴 Demanda fraca' };
+
+// ── tema ──
+const tema = ls.get('radar_tema', null); if (tema) document.documentElement.dataset.theme = tema;
+$('#tema').onclick = () => {
+  const escuro = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = escuro ? 'light' : 'dark'; ls.set('radar_tema', document.documentElement.dataset.theme);
+};
+
+// ── login ──
+function senha(){ return ls.get('radar_senha', ''); }
+function mostrarLogin(sim){ $('#login').classList.toggle('hidden', !sim); $('#app').classList.toggle('hidden', sim); $('#f').classList.toggle('hidden', sim); if (sim) setTimeout(() => $('#senha').focus(), 50); }
+$('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); $('#q').focus(); };
+$('#senha').onkeydown = e => { if (e.key === 'Enter') $('#entrar').click(); };
+$('#sair').onclick = () => { ls.del('radar_senha'); $('#senha').value = ''; mostrarLogin(true); };
+mostrarLogin(!senha());
+
+// ── histórico (as pesquisas ficam salvas aqui: reabrir não gasta crédito) ──
+function historico(){ return ls.get('radar_hist', []); }
+function guardar(d){
+  const h = historico().filter(x => x.termo.toLowerCase() !== d.termo.toLowerCase());
+  h.unshift({ termo:d.termo, nota:d.validacao.nota, nivel:d.validacao.nivel, em:Date.now() });
+  ls.set('radar_hist', h.slice(0, 40));
+  const cache = ls.get('radar_dados', {}); cache[d.termo.toLowerCase()] = d;
+  const chaves = Object.keys(cache); if (chaves.length > 25) delete cache[h[h.length - 1] && h[h.length - 1].termo.toLowerCase()];
+  ls.set('radar_dados', cache);
+  pintarHist();
+}
+function pintarHist(){
+  const h = historico(); const box = $('#hist'); box.innerHTML = '';
+  if (!h.length) return;
+  h.slice(0, 12).forEach(x => {
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'chip';
+    c.innerHTML = esc(x.termo) + ' <b style="background:' + COR[x.nivel] + '">' + x.nota + '</b>';
+    c.onclick = () => abrir(x.termo);
+    box.appendChild(c);
+  });
+  if (h.length > 1) { const c = document.createElement('button'); c.type='button'; c.className='chip'; c.textContent='📊 Comparar'; c.onclick = comparar; box.appendChild(c); }
+}
+pintarHist();
+
+function abrir(termo){
+  const d = ls.get('radar_dados', {})[termo.toLowerCase()];
+  $('#q').value = termo;
+  if (d) { pintar(d, true); } else pesquisar(termo);
+}
+
+// ── pesquisa ──
+let rodando = false;
+$('#f').onsubmit = e => { e.preventDefault(); const t = $('#q').value.trim(); if (t) pesquisar(t); };
+async function pesquisar(termo, atualizar){
+  if (rodando) return; rodando = true;
+  $('#btn').disabled = true; $('#msg').innerHTML = '';
+  $('#conteudo').innerHTML = '<div class="estado"><span class="carregando"></span> Varrendo Google, Shopping, Mercado Livre, Shopee e Amazon…</div>';
+  try {
+    const r = await fetch('/api/pesquisa', { method:'POST', headers:{ 'Content-Type':'application/json', 'x-senha':senha() }, body: JSON.stringify({ termo, atualizar: !!atualizar }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) { ls.del('radar_senha'); mostrarLogin(true); throw new Error('Senha incorreta. Entre de novo.'); }
+    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+    guardar(d); pintar(d);
+  } catch (e) {
+    $('#conteudo').innerHTML = '';
+    $('#msg').innerHTML = '<div class="erro">' + esc(e.message) + '</div>';
+  } finally { rodando = false; $('#btn').disabled = false; }
+}
+
+// ── desenho do painel ──
+function gauge(nota, nivel){
+  const a = Math.max(0, Math.min(100, nota)) / 100, R = 70, C = 2 * Math.PI * R * 0.75;
+  return '<svg class="gauge" viewBox="0 0 170 170"><g transform="rotate(135 85 85)">' +
+    '<circle cx="85" cy="85" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="14" stroke-linecap="round" stroke-dasharray="' + C + ' 999"/>' +
+    '<circle cx="85" cy="85" r="' + R + '" fill="none" stroke="' + COR[nivel] + '" stroke-width="14" stroke-linecap="round" stroke-dasharray="' + (C * a) + ' 999"/></g>' +
+    '<text x="85" y="92" text-anchor="middle" font-size="40" font-weight="800" fill="currentColor">' + nota + '</text>' +
+    '<text x="85" y="116" text-anchor="middle" font-size="12" fill="var(--muted)">de 100</text></svg>';
+}
+function listaMp(m){
+  if (!m.itens.length) return '<div class="vazio">Nenhum resultado desse termo aqui.</div>';
+  return '<ul class="lista">' + m.itens.map(i =>
+    '<li><a class="t" href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.titulo || i.link) + '</a>' +
+    '<div class="m">' + (i.preco != null ? '<span class="preco">' + brl(i.preco) + '</span>' : '') +
+    (i.vendidos != null ? '<span>🔥 ' + num(i.vendidos) + '+ vendidos</span>' : '') +
+    (i.nota != null ? '<span>⭐ ' + String(i.nota).replace('.', ',') + (i.avaliacoes ? ' (' + num(i.avaliacoes) + ')' : '') + '</span>' : '') +
+    (i.anuncio ? '<span class="badge">anúncio</span>' : '<span class="badge" style="background:var(--bg);color:var(--muted)">lista/categoria</span>') +
+    '</div></li>').join('') + '</ul>';
+}
+function cardMp(cls, m){
+  return '<div class="card ' + cls + '"><div class="mp-head"><span class="n">' + esc(m.nome) + '</span><span class="q">' + m.anuncios + (m.anuncios === 1 ? ' anúncio' : ' anúncios') + '</span></div>' +
+    '<div class="mini"><span>Mediana <b>' + brl(m.precos.mediana) + '</b></span><span>Faixa <b>' + (m.precos.min != null ? brl(m.precos.min) + ' – ' + brl(m.precos.max) : '—') + '</b></span>' +
+    (m.maxVendidos ? '<span>Top vendas <b>' + num(m.maxVendidos) + '+</b></span>' : '') + '</div>' + listaMp(m) + '</div>';
+}
+function histograma(fx){
+  if (!fx || !fx.length) return '<div class="vazio">Poucos preços para montar a distribuição.</div>';
+  const max = Math.max(...fx.map(f => f.qtd)) || 1;
+  return '<div class="barra-fx">' + fx.map(f => '<div title="' + brl(f.de) + ' – ' + brl(f.ate) + ': ' + f.qtd + '" style="height:' + Math.max(2, f.qtd / max * 100) + '%"><span>' + (f.qtd || '') + '</span></div>').join('') + '</div>' +
+    '<div class="eixo"><span>' + brl(fx[0].de) + '</span><span>' + brl(fx[fx.length - 1].ate) + '</span></div>';
+}
+function pintar(d, doHistorico){
+  const v = d.validacao, mp = d.marketplaces, s = d.seo;
+  const totalAn = mp.mercadolivre.anuncios + mp.shopee.anuncios + mp.amazon.anuncios;
+  const dom = l => { try { return new URL(l).hostname.replace(/^www\./, ''); } catch(e){ return ''; } };
+  const quando = new Date(d.geradoEm).toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
+  $('#conteudo').innerHTML =
+  '<div class="grid g-hero">' +
+    '<div class="card score">' + gauge(v.nota, v.nivel) +
+      '<div class="veredito" style="color:' + COR[v.nivel] + '">' + NOME[v.nivel] + '</div>' +
+      '<div class="small muted">“' + esc(d.termo) + '” · concorrência <b>' + v.concorrencia + '</b></div>' +
+      '<div class="aviso">Pesquisado em ' + quando + (d.doCache ? ' · do cache' : '') + (doHistorico ? ' · salvo no navegador' : '') +
+      ' · <a href="#" id="atualizar">atualizar</a></div>' +
+    '</div>' +
+    '<div class="card"><h2>📊 Visão geral</h2>' +
+      '<div class="kpis">' +
+        '<div class="kpi"><div class="v">' + brl(d.precos.mediana) + '</div><div class="l">Preço mais comum</div></div>' +
+        '<div class="kpi"><div class="v">' + (d.precos.min != null ? brl(d.precos.min) : '—') + '</div><div class="l">Menor preço · até ' + brl(d.precos.max) + '</div></div>' +
+        '<div class="kpi"><div class="v">' + totalAn + '</div><div class="l">Anúncios nos 3 marketplaces</div></div>' +
+        '<div class="kpi"><div class="v">' + d.shopping.lojas + '</div><div class="l">Lojas no Google Shopping</div></div>' +
+      '</div>' +
+      '<ul class="motivos">' + v.pontos.map(p => '<li><span class="pt ' + (p.p ? '' : 'zero') + '">+' + p.p + '</span><span>' + esc(p.motivo) + '</span></li>').join('') + '</ul>' +
+      (d.dicas.length ? '<ul class="dicas">' + d.dicas.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+      ((d.falhas || []).length ? '<div class="aviso">⚠️ Não vieram: ' + d.falhas.map(f => esc(f.fonte)).join(', ') + '</div>' : '') +
+    '</div>' +
+  '</div>' +
+  '<div class="grid g3" style="margin-top:14px">' + cardMp('ml', mp.mercadolivre) + cardMp('sp', mp.shopee) + cardMp('az', mp.amazon) + '</div>' +
+  '<div class="grid g2" style="margin-top:14px">' +
+    '<div class="card"><h2>🛒 Google Shopping <span class="tag">' + d.shopping.itens.length + ' ofertas · ' + d.shopping.lojas + ' lojas</span></h2>' +
+      (d.shopping.itens.length ? '<div class="tabela-wrap"><table><thead><tr><th>Produto</th><th>Loja</th><th>Preço</th><th>Nota</th></tr></thead><tbody>' +
+        d.shopping.itens.map(i => '<tr><td><a href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.titulo) + '</a></td><td>' + esc(i.loja) + '</td><td class="num preco">' + brl(i.preco) + '</td><td class="num">' + (i.nota != null ? '⭐ ' + String(i.nota).replace('.', ',') + (i.avaliacoes ? ' (' + num(i.avaliacoes) + ')' : '') : '—') + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="vazio">Sem ofertas no Shopping.</div>') +
+    '</div>' +
+    '<div class="card"><h2>💰 Distribuição de preços <span class="tag">' + d.precos.qtd + ' preços lidos</span></h2>' + histograma(d.faixas) +
+      '<p class="small muted" style="margin-top:14px">Preços lidos do Shopping e dos anúncios. Valores muito fora da curva (kits, atacado, acessórios) ficam de fora.</p>' +
+    '</div>' +
+  '</div>' +
+  '<div class="grid g2" style="margin-top:14px">' +
+    '<div class="card"><h2>🔎 SEO · Top 10 do Google <span class="tag">' + s.marketplacesNoTop + ' marketplaces no top</span></h2>' +
+      (s.organicos.length ? '<ul class="org">' + s.organicos.map(o => '<li><span class="pos">' + (o.posicao || '') + '</span><div><a href="' + esc(o.link) + '" target="_blank" rel="noopener">' + esc(o.titulo) + '</a><div class="dom">' + esc(dom(o.link)) + '</div></div></li>').join('') + '</ul>' : '<div class="vazio">Sem resultados orgânicos.</div>') +
+    '</div>' +
+    '<div class="card"><h2>📈 Demanda: o que as pessoas buscam</h2>' +
+      '<div class="small muted" style="margin-bottom:6px">Autocompletar do Google (toque para pesquisar)</div>' +
+      '<div class="chips" id="sug">' + (s.sugestoes.length ? s.sugestoes.map(x => '<button type="button" class="chip" data-t="' + esc(x) + '">' + esc(x) + '</button>').join('') : '<span class="muted small">Nenhuma sugestão.</span>') + '</div>' +
+      '<div class="small muted" style="margin:14px 0 6px">Pesquisas relacionadas</div>' +
+      '<div class="chips" id="rel">' + (s.relacionadas.length ? s.relacionadas.map(x => '<button type="button" class="chip" data-t="' + esc(x) + '">' + esc(x) + '</button>').join('') : '<span class="muted small">Nenhuma.</span>') + '</div>' +
+      (s.perguntas.length ? '<div class="small muted" style="margin:14px 0 6px">As pessoas também perguntam</div><div class="paa">' + s.perguntas.map(p => '<details><summary>' + esc(p.pergunta) + '</summary><p class="small">' + esc(p.resposta || '') + (p.link ? ' <a href="' + esc(p.link) + '" target="_blank" rel="noopener">fonte</a>' : '') + '</p></details>').join('') + '</div>' : '') +
+    '</div>' +
+  '</div>';
+  document.querySelectorAll('#sug .chip, #rel .chip').forEach(b => b.onclick = () => { $('#q').value = b.dataset.t; pesquisar(b.dataset.t); });
+  const at = $('#atualizar'); if (at) at.onclick = e => { e.preventDefault(); pesquisar(d.termo, true); };
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function comparar(){
+  const cache = ls.get('radar_dados', {});
+  const linhas = historico().map(h => cache[h.termo.toLowerCase()]).filter(Boolean);
+  $('#msg').innerHTML = '';
+  $('#conteudo').innerHTML = '<div class="card"><h2>📊 Comparar pesquisas <span class="tag">toque numa linha para abrir</span></h2><div class="tabela-wrap" style="max-height:none"><table class="comparar"><thead><tr><th>Palavra-chave</th><th>Nota</th><th>Preço comum</th><th>ML</th><th>Shopee</th><th>Amazon</th><th>Lojas Shopping</th><th>Concorrência</th></tr></thead><tbody>' +
+    linhas.map(d => '<tr data-t="' + esc(d.termo) + '"><td><b>' + esc(d.termo) + '</b></td><td><b style="color:' + COR[d.validacao.nivel] + '">' + d.validacao.nota + '</b></td><td class="num">' + brl(d.precos.mediana) + '</td><td>' + d.marketplaces.mercadolivre.anuncios + '</td><td>' + d.marketplaces.shopee.anuncios + '</td><td>' + d.marketplaces.amazon.anuncios + '</td><td>' + d.shopping.lojas + '</td><td>' + d.validacao.concorrencia + '</td></tr>').join('') +
+    '</tbody></table></div></div>';
+  document.querySelectorAll('.comparar tr[data-t]').forEach(tr => tr.onclick = () => abrir(tr.dataset.t));
+}
+})();
+</script>
+</body>
+</html>
