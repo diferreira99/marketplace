@@ -1,7 +1,9 @@
-// POST /api/pesquisa  { termo }  (cabeçalho x-senha)
-// Faz 6 consultas no Serper em paralelo e devolve o painel já analisado.
+// POST /api/pesquisa  { termo, atualizar? }  (cabeçalho x-senha)
+// Faz 6 consultas no Serper em paralelo, analisa e guarda na nuvem para todo mundo ver.
 'use strict';
 const { analisar, MARKETPLACES } = require('../lib/analise');
+const { senhaOk, exigirSenha } = require('../lib/acesso');
+const armazem = require('../lib/armazem');
 
 const SERPER = 'https://google.serper.dev';
 const CACHE_MS = 6 * 60 * 60 * 1000;          // mesma palavra em 6 h não gasta crédito de novo
@@ -46,38 +48,37 @@ async function pesquisar(termo, chave, fetcher = fetch) {
   return { ...analisar(q, respostas), falhas, creditos: nomes.length - falhas.length };
 }
 
-function senhaOk(req) {
-  const esperada = process.env.PAINEL_SENHA || '';
-  if (!esperada) return false;                 // sem senha configurada, ninguém usa (protege os créditos)
-  const dada = String(req.headers['x-senha'] || '');
-  if (dada.length !== esperada.length) return false;
-  let d = 0;
-  for (let i = 0; i < dada.length; i++) d |= dada.charCodeAt(i) ^ esperada.charCodeAt(i);
-  return d === 0;
-}
+function recente(d) { return d && d.geradoEm && Date.now() - new Date(d.geradoEm).getTime() < CACHE_MS; }
 
-async function handler(req, res) {
+async function handler(req, res, deps = {}) {
+  const arm = deps.armazem || armazem.padrao();
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ erro: 'use POST' });
-  if (!process.env.PAINEL_SENHA) return res.status(500).json({ erro: 'Falta configurar PAINEL_SENHA na Vercel.' });
-  if (!senhaOk(req)) return res.status(401).json({ erro: 'Senha incorreta.' });
+  if (!exigirSenha(req, res)) return;
   let corpo = req.body;
   if (typeof corpo === 'string') { try { corpo = JSON.parse(corpo); } catch (e) { corpo = {}; } }
   const termo = String((corpo && corpo.termo) || '').replace(/\s+/g, ' ').trim().slice(0, 120);
   if (termo.length < 2) return res.status(400).json({ erro: 'Digite uma palavra-chave.' });
   if (/\bsite:|[<>]/i.test(termo)) return res.status(400).json({ erro: 'Use só a palavra-chave, sem operadores.' });
+  const atualizar = !!(corpo && corpo.atualizar);
+
+  const k = armazem.slug(termo);
+  if (!atualizar) {
+    const c = cache.get(k);
+    if (c && recente(c)) return res.status(200).json({ ...c, doCache: true });
+    const salvo = await arm.ler(termo);
+    if (recente(salvo)) { cache.set(k, salvo); return res.status(200).json({ ...salvo, doCache: true }); }
+  }
 
   const chave = process.env.SERPER_API_KEY;
   if (!chave) return res.status(500).json({ erro: 'Falta configurar SERPER_API_KEY na Vercel.' });
-
-  const k = termo.toLowerCase();
-  const c = cache.get(k);
-  if (c && Date.now() - c.em < CACHE_MS && !(corpo && corpo.atualizar)) return res.status(200).json({ ...c.dados, doCache: true });
   try {
-    const dados = await pesquisar(termo, chave);
-    cache.set(k, { em: Date.now(), dados });
+    const dados = await pesquisar(termo, chave, deps.fetch || fetch);
+    cache.set(k, dados);
     if (cache.size > 300) cache.delete(cache.keys().next().value);
-    return res.status(200).json(dados);
+    let salvoNaNuvem = false;
+    try { salvoNaNuvem = await arm.salvar(dados); } catch (e) { console.warn('[armazem] não salvou:', e && e.message); }
+    return res.status(200).json({ ...dados, salvoNaNuvem });
   } catch (e) {
     return res.status(e.status || 500).json({ erro: 'Não consegui pesquisar agora: ' + e.message });
   }

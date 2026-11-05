@@ -155,39 +155,71 @@ $('#tema').onclick = () => {
 // ── login ──
 function senha(){ return ls.get('radar_senha', ''); }
 function mostrarLogin(sim){ $('#login').classList.toggle('hidden', !sim); $('#app').classList.toggle('hidden', sim); $('#f').classList.toggle('hidden', sim); if (sim) setTimeout(() => $('#senha').focus(), 50); }
-$('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); $('#q').focus(); };
+$('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); $('#q').focus(); carregarHist(); };
 $('#senha').onkeydown = e => { if (e.key === 'Enter') $('#entrar').click(); };
 $('#sair').onclick = () => { ls.del('radar_senha'); $('#senha').value = ''; mostrarLogin(true); };
 mostrarLogin(!senha());
 
-// ── histórico (as pesquisas ficam salvas aqui: reabrir não gasta crédito) ──
-function historico(){ return ls.get('radar_hist', []); }
+// ── histórico compartilhado (nuvem): todo mundo vê as mesmas pesquisas; reabrir não gasta crédito ──
+let _hist = ls.get('radar_hist', []), _nuvem = false;
+function historico(){ return _hist; }
+function resumoLocal(d){
+  const mp = d.marketplaces;
+  return { termo:d.termo, em:d.geradoEm, nota:d.validacao.nota, nivel:d.validacao.nivel, concorrencia:d.validacao.concorrencia,
+    precoMediano:d.precos.mediana, ml:mp.mercadolivre.anuncios, shopee:mp.shopee.anuncios, amazon:mp.amazon.anuncios, lojas:d.shopping.lojas };
+}
+async function api(caminho, op){
+  const r = await fetch(caminho, Object.assign({}, op, { headers: Object.assign({ 'Content-Type':'application/json', 'x-senha':senha() }, (op && op.headers) || {}) }));
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { ls.del('radar_senha'); mostrarLogin(true); throw new Error('Senha incorreta. Entre de novo.'); }
+  if (!r.ok) { const e = new Error(d.erro || ('Erro ' + r.status)); e.status = r.status; throw e; }
+  return d;
+}
+async function carregarHist(){
+  if (!senha()) return;
+  try {
+    const d = await api('/api/historico');
+    _nuvem = !!d.nuvem;
+    if (_nuvem) { _hist = d.itens || []; ls.set('radar_hist', _hist); }
+  } catch (e) { /* sem rede: fica com o que está salvo no navegador */ }
+  pintarHist();
+}
 function guardar(d){
-  const h = historico().filter(x => x.termo.toLowerCase() !== d.termo.toLowerCase());
-  h.unshift({ termo:d.termo, nota:d.validacao.nota, nivel:d.validacao.nivel, em:Date.now() });
-  ls.set('radar_hist', h.slice(0, 40));
+  _hist = [resumoLocal(d)].concat(_hist.filter(x => x.termo.toLowerCase() !== d.termo.toLowerCase())).slice(0, 200);
+  ls.set('radar_hist', _hist);
   const cache = ls.get('radar_dados', {}); cache[d.termo.toLowerCase()] = d;
-  const chaves = Object.keys(cache); if (chaves.length > 25) delete cache[h[h.length - 1] && h[h.length - 1].termo.toLowerCase()];
+  const chaves = Object.keys(cache); if (chaves.length > 25) delete cache[chaves[0]];
   ls.set('radar_dados', cache);
   pintarHist();
 }
 function pintarHist(){
   const h = historico(); const box = $('#hist'); box.innerHTML = '';
   if (!h.length) return;
+  const t = document.createElement('span'); t.className = 'muted small'; t.style.alignSelf = 'center';
+  t.textContent = _nuvem ? '☁️ Pesquisas do time:' : 'Suas pesquisas:'; box.appendChild(t);
   h.slice(0, 12).forEach(x => {
     const c = document.createElement('button'); c.type = 'button'; c.className = 'chip';
     c.innerHTML = esc(x.termo) + ' <b style="background:' + COR[x.nivel] + '">' + x.nota + '</b>';
     c.onclick = () => abrir(x.termo);
     box.appendChild(c);
   });
-  if (h.length > 1) { const c = document.createElement('button'); c.type='button'; c.className='chip'; c.textContent='📊 Comparar'; c.onclick = comparar; box.appendChild(c); }
+  if (h.length > 1) { const c = document.createElement('button'); c.type='button'; c.className='chip'; c.textContent='📊 Comparar (' + h.length + ')'; c.onclick = comparar; box.appendChild(c); }
 }
 pintarHist();
+carregarHist();
 
-function abrir(termo){
-  const d = ls.get('radar_dados', {})[termo.toLowerCase()];
+async function abrir(termo){
   $('#q').value = termo;
-  if (d) { pintar(d, true); } else pesquisar(termo);
+  const local = ls.get('radar_dados', {})[termo.toLowerCase()];
+  const resumo = _hist.find(x => x.termo.toLowerCase() === termo.toLowerCase());
+  if (local && (!resumo || local.geradoEm >= resumo.em)) return pintar(local, true);
+  if (_nuvem) {
+    $('#msg').innerHTML = '';
+    $('#conteudo').innerHTML = '<div class="estado"><span class="carregando"></span> Abrindo pesquisa salva…</div>';
+    try { const d = await api('/api/historico?termo=' + encodeURIComponent(termo)); guardar(d); return pintar(d, true); }
+    catch (e) { if (e.status !== 404) { $('#conteudo').innerHTML = ''; $('#msg').innerHTML = '<div class="erro">' + esc(e.message) + '</div>'; return; } }
+  }
+  pesquisar(termo);
 }
 
 // ── pesquisa ──
@@ -198,10 +230,7 @@ async function pesquisar(termo, atualizar){
   $('#btn').disabled = true; $('#msg').innerHTML = '';
   $('#conteudo').innerHTML = '<div class="estado"><span class="carregando"></span> Varrendo Google, Shopping, Mercado Livre, Shopee e Amazon…</div>';
   try {
-    const r = await fetch('/api/pesquisa', { method:'POST', headers:{ 'Content-Type':'application/json', 'x-senha':senha() }, body: JSON.stringify({ termo, atualizar: !!atualizar }) });
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401) { ls.del('radar_senha'); mostrarLogin(true); throw new Error('Senha incorreta. Entre de novo.'); }
-    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+    const d = await api('/api/pesquisa', { method:'POST', body: JSON.stringify({ termo, atualizar: !!atualizar }) });
     guardar(d); pintar(d);
   } catch (e) {
     $('#conteudo').innerHTML = '';
@@ -292,14 +321,27 @@ function pintar(d, doHistorico){
   window.scrollTo({ top:0, behavior:'smooth' });
 }
 
+let _ordem = 'nota';
 function comparar(){
-  const cache = ls.get('radar_dados', {});
-  const linhas = historico().map(h => cache[h.termo.toLowerCase()]).filter(Boolean);
+  const linhas = historico().slice().sort((a, b) => _ordem === 'nota' ? b.nota - a.nota : _ordem === 'preco' ? (a.precoMediano || 1e9) - (b.precoMediano || 1e9) : String(b.em).localeCompare(String(a.em)));
+  const quando = em => em ? new Date(em).toLocaleDateString('pt-BR') : '—';
   $('#msg').innerHTML = '';
-  $('#conteudo').innerHTML = '<div class="card"><h2>📊 Comparar pesquisas <span class="tag">toque numa linha para abrir</span></h2><div class="tabela-wrap" style="max-height:none"><table class="comparar"><thead><tr><th>Palavra-chave</th><th>Nota</th><th>Preço comum</th><th>ML</th><th>Shopee</th><th>Amazon</th><th>Lojas Shopping</th><th>Concorrência</th></tr></thead><tbody>' +
-    linhas.map(d => '<tr data-t="' + esc(d.termo) + '"><td><b>' + esc(d.termo) + '</b></td><td><b style="color:' + COR[d.validacao.nivel] + '">' + d.validacao.nota + '</b></td><td class="num">' + brl(d.precos.mediana) + '</td><td>' + d.marketplaces.mercadolivre.anuncios + '</td><td>' + d.marketplaces.shopee.anuncios + '</td><td>' + d.marketplaces.amazon.anuncios + '</td><td>' + d.shopping.lojas + '</td><td>' + d.validacao.concorrencia + '</td></tr>').join('') +
+  $('#conteudo').innerHTML = '<div class="card"><h2>📊 Comparar pesquisas' + (_nuvem ? ' do time' : '') + ' <span class="tag">ordenar: ' +
+    ['nota', 'preco', 'data'].map(o => '<a href="#" data-o="' + o + '"' + (o === _ordem ? ' style="font-weight:800"' : '') + '>' + ({ nota:'nota', preco:'preço', data:'mais recentes' }[o]) + '</a>').join(' · ') + '</span></h2>' +
+    '<div class="tabela-wrap" style="max-height:none"><table class="comparar"><thead><tr><th>Palavra-chave</th><th>Nota</th><th>Preço comum</th><th>ML</th><th>Shopee</th><th>Amazon</th><th>Lojas Shopping</th><th>Concorrência</th><th>Data</th>' + (_nuvem ? '<th></th>' : '') + '</tr></thead><tbody>' +
+    linhas.map(d => '<tr data-t="' + esc(d.termo) + '"><td><b>' + esc(d.termo) + '</b></td><td><b style="color:' + COR[d.nivel] + '">' + d.nota + '</b></td><td class="num">' + brl(d.precoMediano) + '</td><td>' + (d.ml ?? '—') + '</td><td>' + (d.shopee ?? '—') + '</td><td>' + (d.amazon ?? '—') + '</td><td>' + (d.lojas ?? '—') + '</td><td>' + esc(d.concorrencia || '—') + '</td><td class="num">' + quando(d.em) + '</td>' +
+      (_nuvem ? '<td><button type="button" class="ic apagar" title="Tirar do histórico" data-t="' + esc(d.termo) + '">🗑️</button></td>' : '') + '</tr>').join('') +
     '</tbody></table></div></div>';
   document.querySelectorAll('.comparar tr[data-t]').forEach(tr => tr.onclick = () => abrir(tr.dataset.t));
+  document.querySelectorAll('[data-o]').forEach(a => a.onclick = e => { e.preventDefault(); _ordem = a.dataset.o; comparar(); });
+  document.querySelectorAll('.apagar').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    if (!confirm('Tirar "' + b.dataset.t + '" do histórico do time?')) return;
+    try { await api('/api/historico?termo=' + encodeURIComponent(b.dataset.t), { method:'DELETE' }); } catch (err) { alert(err.message); return; }
+    _hist = _hist.filter(x => x.termo.toLowerCase() !== b.dataset.t.toLowerCase()); ls.set('radar_hist', _hist);
+    const c = ls.get('radar_dados', {}); delete c[b.dataset.t.toLowerCase()]; ls.set('radar_dados', c);
+    pintarHist(); comparar();
+  });
 }
 })();
 </script>
