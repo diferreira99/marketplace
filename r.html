@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relatório de produto · Radar Marketplace</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<link rel="stylesheet" href="/estilo.css">
+<style>
+  .rel{max-width:980px;margin:0 auto;padding:24px 16px 60px}
+  .rel-topo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .rel-topo h1{margin:0;font-size:1.5rem;flex:1;min-width:220px}
+  .rel-sub{color:var(--muted);font-size:.85rem;margin:0 0 14px}
+  .rel-rodape{margin-top:24px;text-align:center;color:var(--muted);font-size:.78rem}
+  @media print{ .nao-imprime{display:none!important} body{background:#fff} .card{box-shadow:none;break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="rel" id="rel"><div class="estado"><span class="carregando"></span> Abrindo relatório…</div></div>
+<script>
+(function () {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const brl = v => v == null || !isFinite(v) ? '—' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pct = v => v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+  const num = v => v == null ? '—' : Number(v).toLocaleString('pt-BR');
+  const NIVEL = { validado: ['✔', 'Validado', 'var(--ok)'], nicho: ['◐', 'Nicho', 'var(--warn)'], fraco: ['✖', 'Fraco', 'var(--bad)'] };
+  const CANAIS = { mercadolivre: ['Mercado Livre', 'mercadolivre.com.br', 'var(--s1)'], shopee: ['Shopee', 'shopee.com.br', 'var(--s2)'], amazon: ['Amazon', 'amazon.com.br', 'var(--s3)'] };
+  const canal = id => id.startsWith('mercadolivre') ? 'mercadolivre' : id;
+  const logo = k => '<img class="logo-mp" alt="" src="https://www.google.com/s2/favicons?domain=' + CANAIS[k][1] + '&sz=64" onerror="this.style.display=\'none\'">';
+  const barras = (itens, max) => '<div class="hbar">' + itens.map(i => '<div class="hbar-l"><span class="hbar-r">' + esc(i.r) + '</span><span class="hbar-t"><span class="hbar-b" style="width:' + Math.max(1.5, i.v / max * 100) + '%;background:' + i.c + '"></span><span class="hbar-v">' + esc(i.f) + '</span></span></div>').join('') + '</div>';
+
+  const id = new URLSearchParams(location.search).get('id') || '';
+  fetch('/api/compartilhar?id=' + encodeURIComponent(id)).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
+    if (!ok) throw new Error(j.erro || 'Relatório não encontrado.');
+    pintar(j);
+  }).catch(e => { $('#rel').innerHTML = '<div class="estado"><h1>📡 Relatório indisponível</h1><p class="muted">' + esc(e.message) + '</p></div>'; });
+
+  function pintar(rel) {
+    const d = rel.dados, x = rel.extras || {}, v = d.validacao, mp = d.marketplaces, rec = x.recomendacao;
+    const n = NIVEL[v.nivel];
+    const quando = new Date(d.geradoEm).toLocaleDateString('pt-BR');
+    let h = '<div class="rel-topo"><h1>📡 ' + esc(d.termo) + '</h1><button class="pri nao-imprime" onclick="window.print()">⬇️ Salvar em PDF</button></div>' +
+      '<p class="rel-sub">Relatório de validação de produto · dados de ' + quando + ' · Mercado Livre, Shopee, Amazon e Google</p>' +
+      '<div class="grid g4" style="margin-top:0">' +
+        '<div class="kpi"><div class="l">Nota de validação</div><div class="v" style="color:' + n[2] + '">' + v.nota + '/100</div><div class="d">' + n[0] + ' ' + n[1] + ' · concorrência ' + esc(v.concorrencia) + '</div></div>' +
+        '<div class="kpi"><div class="l">Preço mais comum</div><div class="v">' + brl(d.precos.mediana) + '</div><div class="d">de ' + brl(d.precos.min) + ' a ' + brl(d.precos.max) + '</div></div>' +
+        '<div class="kpi"><div class="l">Anúncios nos 3 canais</div><div class="v">' + (mp.mercadolivre.anuncios + mp.shopee.anuncios + mp.amazon.anuncios) + '</div><div class="d">' + d.shopping.lojas + ' lojas no Google Shopping</div></div>' +
+        '<div class="kpi"><div class="l">Melhor canal</div><div class="v" style="font-size:1.25rem">' + (rec && rec.vencedor ? esc(CANAIS[rec.vencedor][0]) : '—') + '</div><div class="d">' + (rec && rec.vencedor ? rec.ranking[0].nota + '/100' : 'sem destaque') + '</div></div>' +
+      '</div>';
+    if (rec) {
+      h += '<div class="card" style="margin-top:14px"><h2>🏆 Onde vender</h2><div class="onde-topo"><div><div class="onde-v">' + (rec.vencedor ? 'Melhor canal: ' + esc(CANAIS[rec.vencedor][0]) : 'Nenhum canal se destaca') + '</div><div class="small">' + esc(rec.estrategia) + '</div></div></div>' +
+        barras(rec.ranking.map(r => ({ r: r.nome, v: r.nota, c: CANAIS[r.id][2], f: r.nota + '/100' })), 100) +
+        '<div class="grid g3">' + rec.ranking.map(r => '<div class="onde-canal"><div class="onde-c">' + logo(r.id) + ' <b>' + esc(r.nome) + '</b><span class="badge" style="margin-left:auto">' + r.nota + '</span></div>' +
+          (r.pros.length ? '<ul class="onde-lista pros">' + r.pros.map(p => '<li>✔ ' + esc(p) + '</li>').join('') + '</ul>' : '') +
+          (r.contras.length ? '<ul class="onde-lista contras">' + r.contras.map(p => '<li>✖ ' + esc(p) + '</li>').join('') + '</ul>' : '') + '</div>').join('') + '</div></div>';
+    }
+    if (x.margens && x.custo) {
+      const linhas = Object.entries(x.margens);
+      h += '<div class="card" style="margin-top:14px"><h2>💰 Margem por canal <span class="tag">custo ' + brl(x.custo) + ' + embalagem ' + brl(x.embalagem) + '</span></h2><div class="tabela-wrap"><table><thead><tr><th>Canal</th><th class="num">Preço</th><th class="num">Comissão</th><th class="num">Taxa fixa</th><th class="num">Frete</th><th class="num">Imposto</th><th class="num">Lucro / un.</th><th class="num">Margem</th></tr></thead><tbody>' +
+        linhas.map(([k, m]) => '<tr><td>' + logo(canal(k)) + ' ' + esc(m.nome) + '</td><td class="num">' + brl(m.preco) + '</td><td class="num">' + brl(m.comissao) + '</td><td class="num">' + brl(m.fixo) + '</td><td class="num">' + brl(m.frete) + '</td><td class="num">' + brl(m.imposto) + '</td><td class="num ' + (m.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(m.lucro) + '</td><td class="num">' + pct(m.margem) + '</td></tr>').join('') + '</tbody></table></div>' +
+        (x.meta ? '<h2 style="margin-top:14px">🎯 Para lucrar ' + brl(x.meta.valor) + ' por mês</h2><div class="tabela-wrap"><table><thead><tr><th>Se vender só no…</th><th class="num">Unidades no mês</th><th class="num">Por dia</th><th class="num">Faturamento</th></tr></thead><tbody>' +
+          linhas.map(([k, m]) => { const y = x.meta.canais[k]; return '<tr><td>' + logo(canal(k)) + ' ' + esc(m.nome) + '</td>' + (y ? '<td class="num"><b>' + num(y.unidades) + '</b></td><td class="num">' + num(y.porDia) + '</td><td class="num">' + brl(y.faturamento) + '</td>' : '<td class="num muted" colspan="3">não dá lucro nesse preço</td>') + '</tr>'; }).join('') + '</tbody></table></div>' : '') + '</div>';
+    }
+    h += '<div class="grid g3">' + Object.keys(CANAIS).map(k => { const m = mp[k]; return '<div class="card"><h2>' + logo(k) + ' ' + esc(m.nome) + ' <span class="tag">' + m.anuncios + (m.anuncios === 1 ? ' anúncio' : ' anúncios') + '</span></h2><div class="mini"><span>Mediana <b>' + brl(m.precos.mediana) + '</b></span>' + (m.maxVendidos ? '<span>Top vendas <b>' + num(m.maxVendidos) + '+</b></span>' : '') + '</div>' +
+      '<ul class="lista">' + m.itens.filter(i => i.anuncio).slice(0, 4).map(i => '<li><span class="t">' + esc(i.titulo) + '</span><div class="m">' + (i.preco != null ? '<span class="preco">' + brl(i.preco) + '</span>' : '') + (i.vendidos != null ? '<span>🔥 ' + num(i.vendidos) + '+</span>' : '') + '</div></li>').join('') + '</ul></div>'; }).join('') + '</div>';
+    const s = d.seo, internas = s.internas || {};
+    h += '<div class="card" style="margin-top:14px"><h2>📈 O que as pessoas buscam</h2><div class="chips">' + s.sugestoes.concat(internas.mercadolivre || []).filter((t, i, a) => a.indexOf(t) === i).slice(0, 18).map(t => '<span class="chip">' + esc(t) + '</span>').join('') + '</div>' +
+      (s.perguntas.length ? '<div class="small muted" style="margin:12px 0 6px">Perguntas frequentes no Google</div><ul class="small">' + s.perguntas.map(p => '<li>' + esc(p.pergunta) + '</li>').join('') + '</ul>' : '') + '</div>';
+    h += '<p class="rel-rodape">Gerado pelo Radar Marketplace em ' + new Date(rel.criadoEm).toLocaleString('pt-BR') + '. Taxas e fretes de referência; confira no painel de vendedor de cada canal.</p>';
+    $('#rel').innerHTML = h;
+    document.title = d.termo + ' · Relatório Radar Marketplace';
+  }
+})();
+</script>
+</body>
+</html>

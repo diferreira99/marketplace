@@ -2,7 +2,8 @@
   "functions": {
     "api/monitorar.js": { "maxDuration": 60 },
     "api/titulos.js": { "maxDuration": 60 },
-    "api/pesquisa.js": { "maxDuration": 30 }
+    "api/pesquisa.js": { "maxDuration": 30 },
+    "api/concorrentes.js": { "maxDuration": 30 }
   },
   "crons": [
     { "path": "/api/monitorar", "schedule": "0 10 * * 1" }

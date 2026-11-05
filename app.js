@@ -174,6 +174,7 @@ function pintarPainel() {
       '<div class="kpi"><div class="ic">⭐</div><div class="l">Nota média</div><div class="v">' + media + '</div><div class="d">Melhor: ' + esc(melhor.termo) + ' (' + melhor.nota + ')</div></div>' +
       '<div class="kpi"><div class="ic">🔔</div><div class="l">Vigiadas</div><div class="v">' + vig.length + '</div><div class="d">checadas toda segunda</div></div>' +
     '</div>' +
+    '<div class="card" style="margin-top:14px" id="painel-alertas"></div>' +
     '<div class="grid g2">' +
       '<div class="card"><h2>🏆 Melhores produtos <span class="tag">nota de 0 a 100 · toque para abrir</span></h2>' +
         barrasH(top.map(x => ({ rotulo: x.termo, valor: x.nota, termo: x.termo, cor: 'var(--brand)', dica: '<b>' + esc(x.termo) + '</b><br>Nota ' + x.nota + ' · ' + NIVEL[x.nivel].nome + '<br>Preço comum ' + brl(x.precoMediano) })), { max: 100, titulo: 'Melhores produtos' }) + '</div>' +
@@ -192,6 +193,7 @@ function pintarPainel() {
     '</div>' +
     '<div class="card" style="margin-top:14px"><h2>📋 Todas as pesquisas <span class="tag">toque numa linha para abrir</span></h2>' + tabelaPesquisas(h) + '</div>';
   const iv = $('#ir-vig'); if (iv) iv.onclick = e => { e.preventDefault(); irPara('vigiadas'); };
+  pintarAlertas('#painel-alertas', 5);
   if (vig.length) carregarSeries(vig).then(() => { const b = $('#painel-vig'); if (b) b.innerHTML = listaVigiadas(vig.slice(0, 6), true); });
 }
 function tabelaPesquisas(h) {
@@ -258,7 +260,7 @@ function pintarResultado(d, salvo) {
   '<div class="grid g-hero" style="margin-top:0">' +
     '<div class="card score">' + gauge(v.nota, v.nivel) + nivelTag(v.nivel) +
       '<div class="small muted">“' + esc(d.termo) + '” · concorrência <b>' + esc(v.concorrencia) + '</b></div>' +
-      '<div class="acoes"><button type="button" class="' + (vig ? 'pri' : 'sec') + '" id="bt-vigiar">' + (vig ? '🔔 Vigiando' : '🔔 Vigiar') + '</button><button type="button" id="bt-atualizar">↻ Atualizar</button></div>' +
+      '<div class="acoes"><button type="button" class="' + (vig ? 'pri' : 'sec') + '" id="bt-vigiar">' + (vig ? '🔔 Vigiando' : '🔔 Vigiar') + '</button><button type="button" id="bt-atualizar">↻ Atualizar</button><button type="button" id="bt-compartilhar">🔗 Compartilhar relatório</button></div><div class="small" id="link-relatorio" style="text-align:left"></div>' +
       '<div class="aviso">Pesquisado em ' + new Date(d.geradoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) + (d.doCache ? ' · já estava salvo' : '') + '</div>' +
     '</div>' +
     '<div class="card"><h2>📊 Visão geral</h2><div class="mini-kpis">' +
@@ -274,7 +276,9 @@ function pintarResultado(d, salvo) {
   '<div class="card" style="margin-top:14px" id="card-onde"></div>' +
   '<div class="card" style="margin-top:14px" id="card-margem"></div>' +
   '<div class="grid g3">' + cardMp('mercadolivre', mp.mercadolivre) + cardMp('shopee', mp.shopee) + cardMp('amazon', mp.amazon) + '</div>' +
-  '<div class="card" style="margin-top:14px" id="card-titulos"><h2>✍️ Títulos de anúncio <span class="tag">a partir das buscas reais e dos concorrentes</span></h2><button type="button" class="sec" id="bt-titulos">Gerar títulos para os 3 canais</button><div id="titulos-saida"></div></div>' +
+  '<div class="card" style="margin-top:14px" id="card-titulos"><h2>✍️ Anúncio pronto <span class="tag">títulos, descrição, destaques, ficha técnica e respostas</span></h2>' +
+    '<label class="small muted" style="display:grid;gap:4px;margin-bottom:8px">Dados do seu produto (marca, material, medidas, cores, o que vem na caixa): a IA usa como verdade e não inventa<textarea id="an-detalhes" style="min-height:70px" placeholder="ex.: marca XYZ, PVC, 22 mm x 20 m, branca e preta, rolo com 1 unidade">' + esc(((cfg().custos || {})[slug(d.termo)] || {}).detalhes || '') + '</textarea></label>' +
+    '<button type="button" class="sec" id="bt-titulos">Gerar o anúncio para os 3 canais</button><div id="titulos-saida"></div></div>' +
   '<div class="grid g2">' +
     '<div class="card"><h2>🛒 Google Shopping <span class="tag">' + d.shopping.itens.length + ' ofertas · ' + d.shopping.lojas + ' lojas</span></h2>' +
       (d.shopping.itens.length ? '<div class="tabela-wrap"><table><thead><tr><th></th><th>Produto</th><th>Loja</th><th class="num">Preço</th><th class="num">Nota</th></tr></thead><tbody>' +
@@ -299,6 +303,7 @@ function pintarResultado(d, salvo) {
   $('#bt-atualizar').onclick = () => pesquisar(d.termo, true);
   $('#bt-vigiar').onclick = () => alternarVigia(d.termo);
   $('#bt-titulos').onclick = () => gerarTitulos(d);
+  $('#bt-compartilhar').onclick = () => compartilharRelatorio(d);
   pintarMargem(d);
   pintarSerie(d.termo);
 }
@@ -335,54 +340,144 @@ function pintarOnde(d, margens) {
 function pintarMargem(d) {
   const c = cfg(), k = slug(d.termo), salvo = (c.custos || {})[k] || {};
   const precoCanal = id => { const m = d.marketplaces[canalDaTaxa(id)]; return (m && m.precos.mediana) || d.precos.mediana || 0; };
+  const v = x => (x == null || x === 0) ? '' : x;
   const box = $('#card-margem');
   box.innerHTML = '<h2>💰 Vale a pena? Margem por canal <span class="tag">imposto ' + pct(c.imposto) + ' · meta de margem ' + pct(c.margemAlvo) + ' · <a href="#" id="ir-taxas">ajustar taxas</a></span></h2>' +
     '<div class="calc-entradas">' +
-      '<label>Custo de produção (R$)<input type="number" step="0.01" min="0" id="m-custo" value="' + (salvo.custo ?? '') + '" placeholder="ex.: 4,50"></label>' +
-      '<label>Embalagem e etiqueta (R$)<input type="number" step="0.01" min="0" id="m-emb" value="' + (salvo.embalagem ?? '') + '" placeholder="ex.: 0,80"></label>' +
-      '<label>&nbsp;<button type="button" class="sec" id="m-salvar">Salvar custo deste produto</button></label>' +
-    '</div><div id="m-saida"></div>';
+      '<label>Custo de produção (R$)<input type="number" step="0.01" min="0" id="m-custo" value="' + v(salvo.custo) + '" placeholder="ex.: 4,50"></label>' +
+      '<label>Embalagem e etiqueta (R$)<input type="number" step="0.01" min="0" id="m-emb" value="' + v(salvo.embalagem) + '" placeholder="ex.: 0,80"></label>' +
+      '<label>Quero lucrar por mês (R$)<input type="number" step="100" min="0" id="m-meta" value="' + v(salvo.meta) + '" placeholder="ex.: 10000"></label>' +
+    '</div>' +
+    '<div class="calc-entradas c4">' +
+      '<label>Peso embalado (kg)<input type="number" step="0.01" min="0" id="m-peso" value="' + v(salvo.pesoKg) + '" placeholder="ex.: 0,35"></label>' +
+      '<label>Comprimento (cm)<input type="number" step="0.5" min="0" id="m-c" value="' + v(salvo.comp) + '"></label>' +
+      '<label>Largura (cm)<input type="number" step="0.5" min="0" id="m-l" value="' + v(salvo.larg) + '"></label>' +
+      '<label>Altura (cm)<input type="number" step="0.5" min="0" id="m-a" value="' + v(salvo.alt) + '"></label>' +
+    '</div>' +
+    '<div class="faixa-info" id="m-info"></div>' +
+    '<div style="margin:6px 0 12px"><button type="button" class="sec" id="m-salvar">Salvar dados deste produto para o time</button></div>' +
+    '<div id="m-saida"></div><div id="m-meta-saida"></div><div id="m-kits"></div>';
   $('#ir-taxas').onclick = e => { e.preventDefault(); irPara('taxas'); };
   const precos = {}; Object.keys(c.taxas).forEach(id => precos[id] = Math.round(precoCanal(id) * 100) / 100);
+  let taxaML = null;   // taxa oficial da categoria (vem do Mercado Livre)
+  const ler = id => Number($(id).value) || 0;
+  function entrada() {
+    const peso = Frete.pesoConsiderado(ler('#m-peso'), ler('#m-c'), ler('#m-l'), ler('#m-a'));
+    const fretes = {}, ajustes = {};
+    for (const id of Object.keys(c.taxas)) {
+      const f = Frete.fretePorPeso(canalDaTaxa(id), peso.considerado, c.fretes);
+      if (f != null) fretes[id] = f;
+    }
+    if (taxaML && taxaML.oficial) {
+      if (taxaML.classico) ajustes.mercadolivre = { comissao: taxaML.classico.percentual, fixoAbaixo: taxaML.classico.fixo || c.taxas.mercadolivre.fixoAbaixo };
+      if (taxaML.premium) ajustes.mercadolivrePremium = { comissao: taxaML.premium.percentual, fixoAbaixo: taxaML.premium.fixo || c.taxas.mercadolivrePremium.fixoAbaixo };
+    }
+    return { peso, e: { precos, custo: ler('#m-custo'), embalagem: ler('#m-emb'), imposto: c.imposto, margemAlvo: c.margemAlvo, taxas: c.taxas, fretes, ajustes } };
+  }
   function calc() {
-    const custo = Number($('#m-custo').value) || 0, emb = Number($('#m-emb').value) || 0;
-    const r = Margem.calcular({ precos, custo, embalagem: emb, imposto: c.imposto, margemAlvo: c.margemAlvo, taxas: c.taxas });
-    pintarOnde(d, custo ? { mercadolivre: r.mercadolivre, shopee: r.shopee, amazon: r.amazon } : null);
+    const { peso, e } = entrada();
+    const r = Margem.calcular(e);
+    const custo = e.custo;
+    const margens = custo ? { mercadolivre: r.mercadolivre, shopee: r.shopee, amazon: r.amazon } : null;
+    pintarOnde(d, margens);
+    S.extras = { custo: e.custo, embalagem: e.embalagem, peso, margens: r, taxaML, recomendacao: window.Recomendacao ? Recomendacao.recomendar(d, margens) : null };
+    // linha de informação: frete pelo peso e taxa oficial do ML
+    const ult = (c.fretes.mercadolivre || []).slice(-1)[0];
+    $('#m-info').innerHTML =
+      (peso.considerado ? '📦 Peso usado no frete: <b>' + peso.considerado.toLocaleString('pt-BR') + ' kg</b>' + (peso.cubado > peso.real ? ' (o cubado ' + peso.cubado.toLocaleString('pt-BR') + ' kg é maior que o real)' : '') + ' · frete ' + Object.entries(e.fretes).filter(([id]) => id !== 'mercadolivrePremium').map(([id, f]) => CANAIS[canalDaTaxa(id)].nome + ' ' + brl(f)).join(' · ') + (ult && peso.considerado > ult[0] ? ' ⚠️ acima da última faixa da tabela' : '') : '📦 Informe o peso para o frete sair pela faixa de peso (hoje usa o valor fixo da taxa).') +
+      '<br>' + (taxaML === null ? '<span class="carregando" style="width:12px;height:12px;border-width:2px"></span> Buscando a comissão oficial da categoria no Mercado Livre…'
+        : taxaML.oficial ? logo('mercadolivre') + ' Categoria no Mercado Livre: <b>' + esc(taxaML.categoria) + '</b> · comissão oficial Clássico <b>' + pct(taxaML.classico && taxaML.classico.percentual) + '</b> · Premium <b>' + pct(taxaML.premium && taxaML.premium.percentual) + '</b>'
+        : logo('mercadolivre') + ' ' + esc(taxaML.motivo || 'Comissão oficial indisponível agora') + ' (usando a taxa de referência).');
     const linhas = Object.entries(r);
     $('#m-saida').innerHTML = (custo ? '' : '<p class="small muted">Digite o custo de produção para ver o lucro de verdade. Os preços já vêm da mediana de cada canal, e você pode mudar.</p>') +
       '<div class="tabela-wrap"><table><thead><tr><th>Canal</th><th class="num">Preço de venda</th><th class="num">Comissão</th><th class="num">Taxa fixa</th><th class="num">Frete</th><th class="num">Imposto</th><th class="num">Custo</th><th class="num">Lucro / un.</th><th class="num">Margem</th><th class="num">Preço p/ ' + pct(c.margemAlvo) + '</th></tr></thead><tbody>' +
-      linhas.map(([id, x]) => '<tr><td>' + logo(canalDaTaxa(id)) + ' ' + esc(x.nome) + '</td><td class="num"><input type="number" step="0.01" min="0" data-preco="' + id + '" value="' + precos[id] + '" style="width:96px;text-align:right"></td><td class="num">' + brl(x.comissao) + '</td><td class="num">' + brl(x.fixo) + '</td><td class="num">' + brl(x.frete) + '</td><td class="num">' + brl(x.imposto) + '</td><td class="num">' + brl(x.custo) + '</td><td class="num ' + (x.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(x.lucro) + '</td><td class="num ' + (x.margem >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + pct(x.margem) + '</td><td class="num">' + brl(x.precoMinimo) + '</td></tr>').join('') +
+      linhas.map(([id, x]) => '<tr><td>' + logo(canalDaTaxa(id)) + ' ' + esc(x.nome) + '</td><td class="num"><input type="number" step="0.01" min="0" data-preco="' + id + '" value="' + precos[id] + '" style="width:96px;text-align:right"></td><td class="num" title="' + pct(x.taxaUsada.comissao) + '">' + brl(x.comissao) + '</td><td class="num">' + brl(x.fixo) + '</td><td class="num">' + brl(x.frete) + '</td><td class="num">' + brl(x.imposto) + '</td><td class="num">' + brl(x.custo) + '</td><td class="num ' + (x.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(x.lucro) + '</td><td class="num ' + (x.margem >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + pct(x.margem) + '</td><td class="num">' + brl(x.precoMinimo) + '</td></tr>').join('') +
       '</tbody></table></div>' +
-      (custo ? '<h2 style="margin-top:14px">Lucro por unidade</h2>' + barrasH(linhas.map(([id, x]) => ({ rotulo: x.nome, valor: Math.max(0, x.lucro), cor: CANAIS[canalDaTaxa(id)].cor, dica: x.nome + '<br>Lucro ' + brl(x.lucro) + ' (' + pct(x.margem) + ')' })), { esq: 260, formato: brl }) +
+      (custo ? '<h2 style="margin-top:14px">Lucro por unidade</h2>' + barrasH(linhas.map(([id, x]) => ({ rotulo: x.nome, valor: Math.max(0, x.lucro), cor: CANAIS[canalDaTaxa(id)].cor, dica: x.nome + '<br>Lucro ' + brl(x.lucro) + ' (' + pct(x.margem) + ')' })), { formato: brl }) +
         '<p class="small muted">' + melhorCanal(linhas) + '</p>' : '') +
-      '<p class="aviso">Taxas de referência (mudam com frequência e variam por categoria). Confira as suas em ⚙️ Taxas.</p>';
+      '<p class="aviso">Comissão do Mercado Livre: oficial da categoria quando o ML responde. As outras taxas e a tabela de frete são de referência: confira em ⚙️ Taxas.</p>';
     $$('[data-preco]').forEach(inp => inp.onchange = () => { precos[inp.dataset.preco] = Number(inp.value) || 0; calc(); });
+    // 🎯 meta do mês
+    const metaV = ler('#m-meta');
+    if (custo && metaV) {
+      const m = Margem.metaMensal(r, metaV);
+      S.extras.meta = { valor: metaV, canais: m };
+      $('#m-meta-saida').innerHTML = '<h2 style="margin-top:16px">🎯 Para lucrar ' + brl0(metaV) + ' por mês</h2><div class="tabela-wrap"><table><thead><tr><th>Se vender só no…</th><th class="num">Unidades no mês</th><th class="num">Por dia</th><th class="num">Faturamento</th><th class="num">Produção (com 10% de folga)</th></tr></thead><tbody>' +
+        linhas.map(([id, x]) => { const y = m[id]; return '<tr><td>' + logo(canalDaTaxa(id)) + ' ' + esc(x.nome) + '</td>' + (y ? '<td class="num"><b>' + num(y.unidades) + '</b></td><td class="num">' + num(y.porDia) + '</td><td class="num">' + brl0(y.faturamento) + '</td><td class="num">' + num(Math.ceil(y.unidades * 1.1)) + '</td>' : '<td class="num muted" colspan="4">não dá lucro nesse preço</td>') + '</tr>'; }).join('') +
+        '</tbody></table></div><p class="aviso">Na prática você divide entre os canais: some as unidades de cada um até chegar na meta.</p>';
+    } else { $('#m-meta-saida').innerHTML = custo ? '<p class="small muted">🎯 Coloque quanto quer lucrar por mês para ver quantas unidades vender e produzir.</p>' : ''; S.extras.meta = null; }
+    // 📦 kits
+    if (custo) {
+      const pesoUn = peso.considerado;
+      const fretesKit = {};
+      for (const n of [2, 3, 5, 10]) { fretesKit[n] = {}; for (const id of Object.keys(c.taxas)) { const f = Frete.fretePorPeso(canalDaTaxa(id), pesoUn * n, c.fretes); if (f != null) fretesKit[n][id] = f; } }
+      const kt = Margem.kits({ ...e, fretesKit });
+      S.extras.kits = kt;
+      const ids = ['mercadolivre', 'shopee', 'amazon'];
+      const existentes = [...new Set([...(d.seo.sugestoes || []), ...((d.seo.internas || {}).mercadolivre || []), ...((d.seo.internas || {}).amazon || []), ...(d.seo.relacionadas || [])]
+        .filter(s => /\bkit\b|\bcom \d|\b\d+\s?(un|unid|unidades|pe[cç]as|p[cç]s|rolos?|pares?|metros?)\b|\bc\/\s?\d/i.test(s)))];
+      $('#m-kits').innerHTML = '<h2 style="margin-top:16px">📦 Kits: vender mais de uma unidade por pedido</h2>' +
+        (existentes.length ? '<div class="small" style="margin-bottom:8px">Buscas reais com cara de kit: ' + existentes.slice(0, 8).map(x => '<button type="button" class="chip" data-pesq="' + esc(x) + '">' + esc(x) + '</button>').join(' ') + '</div>' : '') +
+        '<div class="tabela-wrap"><table><thead><tr><th>Kit</th><th class="num">Desconto</th>' + ids.map(id => '<th class="num">' + logo(id) + ' preço / lucro do kit</th>').join('') + '</tr></thead><tbody>' +
+        Object.entries(kt).map(([n, kk]) => '<tr><td><b>Kit ' + n + '</b></td><td class="num">' + pct(kk.desconto) + '</td>' + ids.map(id => { const x = kk.canais[id]; return '<td class="num">' + brl(x.preco) + ' · <span class="' + (x.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(x.lucro) + '</span>' + (x.ganhoVsUnidade != null ? '<div class="small ' + (x.ganhoVsUnidade >= 0 ? 'var-pos' : 'var-neg') + '">' + (x.ganhoVsUnidade >= 0 ? '+' : '') + brl(x.ganhoVsUnidade) + ' por unidade</div>' : '') + '</td>'; }).join('') + '</tr>').join('') +
+        '</tbody></table></div><p class="aviso">Kit = n unidades num anúncio só: a comissão e a taxa fixa são cobradas uma vez, o frete sai pelo peso total e há um desconto pequeno para o comprador. "+R$ por unidade" é quanto cada unidade rende a mais do que vendida sozinha.</p>';
+      $$('#m-kits [data-pesq]').forEach(b => b.onclick = () => { $('#q').value = b.dataset.pesq; pesquisar(b.dataset.pesq); });
+    } else { $('#m-kits').innerHTML = ''; S.extras.kits = null; }
   }
-  $('#m-custo').oninput = calc; $('#m-emb').oninput = calc;
+  ['#m-custo', '#m-emb', '#m-meta', '#m-peso', '#m-c', '#m-l', '#m-a'].forEach(id => $(id).oninput = calc);
   $('#m-salvar').onclick = async () => {
-    try { S.cfg = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'custo', termo: d.termo, custo: Number($('#m-custo').value) || 0, embalagem: Number($('#m-emb').value) || 0 }) }); $('#m-salvar').textContent = '✔ Custo salvo para o time'; }
-    catch (e) { erro(e.message); }
+    try {
+      S.cfg = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'custo', termo: d.termo, custo: ler('#m-custo'), embalagem: ler('#m-emb'), meta: ler('#m-meta'), pesoKg: ler('#m-peso'), comp: ler('#m-c'), larg: ler('#m-l'), alt: ler('#m-a'), detalhes: ($('#an-detalhes') && $('#an-detalhes').value) || salvo.detalhes || '' }) });
+      $('#m-salvar').textContent = '✔ Salvo para o time';
+    } catch (e) { erro(e.message); }
   };
   calc();
+  api('/api/taxa-ml?termo=' + encodeURIComponent(d.termo) + '&preco=' + encodeURIComponent(precos.mercadolivre || 50))
+    .then(t => { taxaML = t; }).catch(() => { taxaML = { oficial: false, motivo: 'Comissão oficial indisponível agora' }; })
+    .finally(() => { if ($('#m-info') && S.atual === d) calc(); });
 }
 function melhorCanal(linhas) {
   const ok = linhas.filter(([, x]) => x.lucro > 0).sort((a, b) => b[1].lucro - a[1].lucro);
   if (!ok.length) return '⚠️ Com esse custo e esses preços, nenhum canal dá lucro. Veja a coluna "Preço p/ meta".';
-  return '👉 Melhor canal agora: <b>' + esc(ok[0][1].nome) + '</b>, ' + brl(ok[0][1].lucro) + ' por unidade (' + pct(ok[0][1].margem) + ').';
+  return '👉 Maior lucro por unidade agora: <b>' + esc(ok[0][1].nome) + '</b>, ' + brl(ok[0][1].lucro) + ' (' + pct(ok[0][1].margem) + ').';
 }
 
-// ✍️ Títulos
+// ✍️ Anúncio pronto
 async function gerarTitulos(d) {
   const bt = $('#bt-titulos'), out = $('#titulos-saida');
-  bt.disabled = true; out.innerHTML = '<div class="vazio"><span class="carregando"></span>Escrevendo títulos…</div>';
+  const detalhes = ($('#an-detalhes') && $('#an-detalhes').value.trim()) || '';
+  bt.disabled = true; out.innerHTML = '<div class="vazio"><span class="carregando"></span>Escrevendo o anúncio… (com a IA pode levar até 1 minuto)</div>';
   try {
-    const r = await api('/api/titulos', { method: 'POST', body: JSON.stringify({ termo: d.termo, dados: d }) });
-    out.innerHTML = '<div class="titulos">' + Object.keys(CANAIS).map(k => '<div><b>' + logo(k) + ' ' + CANAIS[k].nome + '</b> <span class="muted small">(até ' + r.limites[k] + ' caracteres)</span><ol>' +
-      (r[k] || []).map(t => '<li>' + esc(t) + '<span class="cont">' + t.length + '</span><button type="button" class="copiar" data-copiar="' + esc(t) + '">copiar</button></li>').join('') + '</ol></div>').join('') +
-      (r.dica ? '<p class="small">💡 ' + esc(r.dica) + '</p>' : '') + (r.fonte === 'ia' ? '<p class="aviso">Escritos pela IA (Claude) com base nas buscas reais e nos concorrentes.</p>' : '') + '</div>';
-    $$('[data-copiar]').forEach(b => b.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(b.dataset.copiar); b.textContent = '✔ copiado'; });
+    const r = await api('/api/titulos', { method: 'POST', body: JSON.stringify({ termo: d.termo, dados: d, detalhes }) });
+    const copiar = t => '<button type="button" class="copiar" data-copiar="' + esc(t) + '">copiar</button>';
+    let aba = 'mercadolivre';
+    function desenhar() {
+      const x = r[aba] || { titulos: [], descricao: '', destaques: [] };
+      out.innerHTML = '<div class="abas-canal">' + Object.keys(CANAIS).map(k => '<button type="button" data-aba-canal="' + k + '" class="' + (k === aba ? 'pri' : '') + '">' + logo(k) + ' ' + CANAIS[k].nome + '</button>').join('') + '</div>' +
+        '<div class="titulos"><div><b>Títulos</b> <span class="muted small">(até ' + r.limites[aba] + ' caracteres)</span><ol>' + x.titulos.map(t => '<li>' + esc(t) + '<span class="cont">' + t.length + '</span>' + copiar(t) + '</li>').join('') + '</ol></div>' +
+        '<div><b>Descrição</b> ' + copiar(x.descricao) + '<pre class="desc">' + esc(x.descricao) + '</pre></div>' +
+        '<div><b>Destaques</b> ' + copiar(x.destaques.map(y => '• ' + y).join('\n')) + '<ul>' + x.destaques.map(y => '<li>' + esc(y) + '</li>').join('') + '</ul></div>' +
+        (r.fichaTecnica && r.fichaTecnica.length ? '<div><b>Ficha técnica sugerida</b><table>' + r.fichaTecnica.map(f => '<tr><td>' + esc(f.campo) + '</td><td>' + esc(f.valor) + '</td></tr>').join('') + '</table></div>' : '') +
+        (r.perguntas && r.perguntas.length ? '<div><b>Respostas para as perguntas que o povo faz</b>' + r.perguntas.map(p => '<details><summary>' + esc(p.pergunta) + '</summary><p class="small">' + esc(p.resposta) + ' ' + copiar(p.resposta) + '</p></details>').join('') + '</div>' : '') +
+        (r.dica ? '<p class="small">💡 ' + esc(r.dica) + '</p>' : '') + (r.fonte === 'ia' ? '<p class="aviso">Escrito pela IA (Claude) com base nas buscas reais e nos concorrentes. Revise medidas e dados antes de publicar.</p>' : '') + '</div>';
+      $$('[data-aba-canal]').forEach(b => b.onclick = () => { aba = b.dataset.abaCanal; desenhar(); });
+      $$('#titulos-saida [data-copiar]').forEach(b => b.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(b.dataset.copiar); b.textContent = '✔ copiado'; });
+    }
+    desenhar();
   } catch (e) { out.innerHTML = ''; erro(e.message); }
   finally { bt.disabled = false; bt.textContent = '↻ Gerar de novo'; }
+}
+
+// 🔗 Relatório para compartilhar
+async function compartilharRelatorio(d) {
+  const bt = $('#bt-compartilhar'); bt.disabled = true; bt.textContent = 'Gerando link…';
+  try {
+    const r = await api('/api/compartilhar', { method: 'POST', body: JSON.stringify({ termo: d.termo, extras: S.extras || {} }) });
+    const link = location.origin + r.caminho;
+    if (navigator.clipboard) { try { await navigator.clipboard.writeText(link); } catch (e) {} }
+    $('#link-relatorio').innerHTML = '🔗 Link do relatório (copiado): <a href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(link) + '</a><div class="aviso">Quem tiver o link vê o relatório, sem precisar de senha. Não dá acesso ao resto do painel.</div>';
+  } catch (e) { erro(e.message); }
+  finally { bt.disabled = false; bt.textContent = '🔗 Compartilhar relatório'; }
 }
 
 // 🔔 Vigiar e série
@@ -427,12 +522,52 @@ function listaVigiadas(vig, curto) {
 // ───────────────────────── 🔔 VIGIADAS ─────────────────────────
 async function pintarVigiadas() {
   const box = $('#aba-vigiadas'), vig = cfg().vigiadas || [];
-  box.innerHTML = '<h1 class="titulo-aba">Vigiadas</h1><p class="sub-aba">Toda segunda de manhã o Radar refaz a pesquisa dessas palavras e anota preço, nota e concorrência. Até 15 palavras (6 créditos do Serper cada, por semana).</p>' +
-    '<div class="card" style="margin-top:14px" id="vig-lista">' + (vig.length ? '<div class="vazio"><span class="carregando"></span>carregando…</div>' : '<div class="vazio">Nenhuma palavra vigiada ainda. Abra uma pesquisa e toque em <b>🔔 Vigiar</b>.</div>') + '</div>';
+  box.innerHTML = '<h1 class="titulo-aba">Vigiadas e concorrentes</h1><p class="sub-aba">Toda segunda de manhã o Radar refaz a pesquisa das palavras vigiadas, checa os anúncios dos concorrentes e avisa o que mudou.</p>' +
+    '<div class="card" style="margin-top:14px" id="alertas-lista"><h2>🚨 O que mudou</h2><div class="vazio"><span class="carregando"></span>carregando…</div></div>' +
+    '<div class="card" style="margin-top:14px"><h2>🕵️ Concorrentes <span class="tag">até 20 · 1 crédito do Serper por checagem</span></h2>' +
+      '<form id="conc-form" class="conc-form"><input id="conc-link" placeholder="Cole o link do anúncio do concorrente (Mercado Livre, Shopee ou Amazon)"><input id="conc-apelido" placeholder="Apelido (ex.: Loja X 22mm)"><button class="pri" type="submit">Acompanhar</button></form>' +
+      '<div id="conc-lista"><div class="vazio"><span class="carregando"></span>carregando…</div></div></div>' +
+    '<div class="card" style="margin-top:14px"><h2>🔔 Palavras vigiadas <span class="tag">até 15 · 6 créditos por semana cada</span></h2><div id="vig-lista">' + (vig.length ? '<div class="vazio"><span class="carregando"></span>carregando…</div>' : '<div class="vazio">Nenhuma palavra vigiada ainda. Abra uma pesquisa e toque em <b>🔔 Vigiar</b>.</div>') + '</div></div>';
+  $('#conc-form').onsubmit = async e => {
+    e.preventDefault();
+    const link = $('#conc-link').value.trim(); if (!link) return;
+    const bt = $('#conc-form button'); bt.disabled = true; bt.textContent = 'Checando…';
+    try { await api('/api/concorrentes', { method: 'POST', body: JSON.stringify({ acao: 'adicionar', link, apelido: $('#conc-apelido').value.trim() }) }); $('#conc-link').value = ''; $('#conc-apelido').value = ''; await pintarConcorrentes(); }
+    catch (err) { erro(err.message); }
+    finally { bt.disabled = false; bt.textContent = 'Acompanhar'; }
+  };
+  pintarAlertas('#alertas-lista', 50);
+  pintarConcorrentes();
   if (!vig.length) return;
   await carregarSeries(vig);
   $('#vig-lista').innerHTML = listaVigiadas(vig, false);
   $$('[data-desvigiar]').forEach(b => b.onclick = async e => { e.stopPropagation(); await alternarVigia(b.dataset.desvigiar); pintarVigiadas(); });
+}
+async function pintarConcorrentes() {
+  const box = $('#conc-lista'); if (!box) return;
+  let itens = [];
+  try { itens = (await api('/api/concorrentes')).itens || []; } catch (e) { box.innerHTML = '<div class="vazio">' + esc(e.message) + '</div>'; return; }
+  if (!itens.length) { box.innerHTML = '<div class="vazio">Nenhum concorrente ainda. Cole o link de um anúncio que vende o mesmo que você.</div>'; return; }
+  const ult = p => p.filter(x => x.achou).slice(-1)[0] || {};
+  box.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>Anúncio</th><th class="num">Preço</th><th class="num">Vendidos</th><th class="num">Nota</th><th>Preço no tempo</th><th>Variação</th><th class="num">Checado</th><th></th></tr></thead><tbody>' +
+    itens.map(c => { const u = ult(c.pontos), canal = CANAIS[c.canal] ? c.canal : null; return '<tr><td>' + (canal ? logo(canal) + ' ' : '') + '<a href="' + esc(c.link) + '" target="_blank" rel="noopener"><b>' + esc(c.apelido || u.titulo || 'Anúncio') + '</b></a>' + (u.titulo && c.apelido ? '<div class="small muted">' + esc(u.titulo.slice(0, 60)) + '</div>' : '') + (!c.pontos.some(x => x.achou) ? '<div class="small muted">O Google ainda não mostra esse anúncio; tento de novo na próxima checagem.</div>' : '') + '</td>' +
+      '<td class="num">' + brl(u.preco) + '</td><td class="num">' + (u.vendidos != null ? num(u.vendidos) + '+' : '—') + '</td><td class="num">' + (u.nota != null ? '⭐ ' + String(u.nota).replace('.', ',') : '—') + '</td>' +
+      '<td>' + sparkline(c.pontos.filter(x => x.achou), 'preco') + '</td><td>' + variacao(c.pontos.filter(x => x.achou), 'preco', brl, true) + '</td><td class="num">' + dataBR((c.pontos.slice(-1)[0] || {}).em) + '</td>' +
+      '<td style="white-space:nowrap"><button type="button" class="link" data-checar="' + c.id + '" title="Checar agora (1 crédito)">↻</button> <button type="button" class="link" data-remover="' + c.id + '" title="Parar de acompanhar">✖</button></td></tr>'; }).join('') +
+    '</tbody></table></div>';
+  $$('[data-checar]').forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = '…'; try { await api('/api/concorrentes', { method: 'POST', body: JSON.stringify({ acao: 'checar', id: b.dataset.checar }) }); } catch (e) { erro(e.message); } pintarConcorrentes(); });
+  $$('[data-remover]').forEach(b => b.onclick = async () => { if (!confirm('Parar de acompanhar esse concorrente?')) return; try { await api('/api/concorrentes', { method: 'POST', body: JSON.stringify({ acao: 'remover', id: b.dataset.remover }) }); } catch (e) { erro(e.message); } pintarConcorrentes(); });
+}
+const ICONE_ALERTA = { 'preco-caiu': '📉', 'preco-subiu': '📈', 'nota-subiu': '⭐', 'nota-caiu': '⚠️', concorrencia: '👥', 'concorrente-baixou': '🏷️', 'concorrente-subiu': '🏷️', 'concorrente-vendeu': '🔥' };
+async function pintarAlertas(sel, max) {
+  const box = $(sel); if (!box) return;
+  let r = { itens: [], webhook: false };
+  try { r = await api('/api/alertas'); } catch (e) { /* sem alertas */ }
+  if (!$(sel)) return;
+  const itens = (r.itens || []).slice(0, max);
+  box.innerHTML = '<h2>🚨 O que mudou <span class="tag">' + (r.webhook ? '📲 avisos também saem pelo webhook' : 'avisos aparecem aqui') + '</span></h2>' +
+    (itens.length ? '<ul class="alertas">' + itens.map(a => '<li><span>' + (ICONE_ALERTA[a.tipo] || '🔔') + '</span><div>' + esc(a.msg) + '<div class="small muted">' + dataBR(a.em) + '</div></div></li>').join('') + '</ul>'
+      : '<div class="vazio">Nada mudou de forma relevante ainda. Os alertas aparecem depois das checagens de segunda (preço mudou 10%+, nota 10+ pontos, entrou concorrência, concorrente baixou preço ou vendeu mais).</div>');
 }
 
 // ───────────────────────── 📋 LOTE ─────────────────────────
@@ -486,6 +621,25 @@ function pintarTaxas() {
   $('#tx-padrao').onclick = async () => {
     if (!confirm('Voltar as taxas ao padrão para todo o time?')) return;
     try { S.cfg = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'taxas', restaurar: true }) }); pintarTaxas(); } catch (e) { erro(e.message); }
+  };
+  // 📦 tabela de frete por peso (Mercado Livre e Amazon; na Shopee o frete entra na comissão)
+  const fr = c.fretes || Frete.FAIXAS_PADRAO;
+  const tabela = id => '<div><b>' + logo(id) + ' ' + CANAIS[id].nome + '</b><table class="frete-tab"><thead><tr><th class="num">Até (kg)</th><th class="num">Frete (R$)</th></tr></thead><tbody>' +
+    (fr[id] || []).concat([['', '']]).map(([kg, v], i) => '<tr><td class="num"><input type="number" step="0.01" min="0" data-fr="' + id + '.' + i + '.0" value="' + kg + '"></td><td class="num"><input type="number" step="0.01" min="0" data-fr="' + id + '.' + i + '.1" value="' + v + '"></td></tr>').join('') + '</tbody></table></div>';
+  box.insertAdjacentHTML('beforeend', '<div class="card taxas-tab" style="margin-top:14px"><h2>📦 Frete pelo peso <span class="tag">usado quando o produto tem peso informado</span></h2>' +
+    '<p class="small muted">Quanto o vendedor paga do frete grátis em cada faixa de peso (o maior entre peso real e cubado). Valores de referência: confira na tabela do seu nível de reputação. Use a linha vazia para acrescentar uma faixa.</p>' +
+    '<div class="grid g2" style="margin-top:0">' + tabela('mercadolivre') + tabela('amazon') + '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="pri" id="fr-salvar">Salvar tabela de frete</button><button type="button" id="fr-padrao">Voltar ao padrão</button><span class="small muted" id="fr-est"></span></div></div>');
+  $('#fr-salvar').onclick = async () => {
+    const fretes = { mercadolivre: [], amazon: [] };
+    $$('[data-fr]').forEach(i => { const [id, n, k] = i.dataset.fr.split('.'); (fretes[id][n] = fretes[id][n] || [])[k] = i.value === '' ? null : Number(i.value); });
+    for (const id of Object.keys(fretes)) fretes[id] = fretes[id].filter(f => f && f[0] > 0 && f[1] != null);
+    try { S.cfg = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'fretes', fretes }) }); $('#fr-est').textContent = '✔ Tabela salva para o time.'; pintarTaxas(); }
+    catch (e) { erro(e.message); }
+  };
+  $('#fr-padrao').onclick = async () => {
+    if (!confirm('Voltar a tabela de frete ao padrão?')) return;
+    try { S.cfg = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'fretes', restaurar: true }) }); pintarTaxas(); } catch (e) { erro(e.message); }
   };
 }
 

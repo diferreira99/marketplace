@@ -68,7 +68,7 @@ test('config: taxas, custo por produto e vigiadas ficam na nuvem', async () => {
   assert.strictEqual(r.body.taxas.amazon.comissao, 15);
   r = resFalsa();
   await config({ method: 'POST', headers: H, body: { acao: 'custo', termo: 'Fita de Borda', custo: 4.5, embalagem: 0.8 } }, r, { armazem: arm });
-  assert.deepStrictEqual(r.body.custos['fita-de-borda'], { custo: 4.5, embalagem: 0.8 });
+  assert.strictEqual(r.body.custos['fita-de-borda'].custo, 4.5); assert.strictEqual(r.body.custos['fita-de-borda'].embalagem, 0.8);
   r = resFalsa();
   await config({ method: 'POST', headers: H, body: { acao: 'vigiar', termo: 'Fita de Borda', ligar: true } }, r, { armazem: arm });
   assert.strictEqual(r.body.vigiadas.length, 1);
@@ -87,15 +87,15 @@ test('títulos: sem chave da IA monta por regra dentro do limite de cada canal',
   const r = resFalsa();
   await titulos({ method: 'POST', headers: H, body: { termo: fx.termo } }, r, { armazem: arm });
   assert.strictEqual(r.code, 200); assert.strictEqual(r.body.fonte, 'regra');
-  assert.ok(r.body.mercadolivre.length >= 1 && r.body.mercadolivre.every(t => t.length <= 60));
-  assert.ok(r.body.shopee.every(t => t.length <= 100));
-  assert.ok(/22mm|branca/i.test(r.body.shopee.join(' ')));
+  assert.ok(r.body.mercadolivre.titulos.length >= 1 && r.body.mercadolivre.titulos.every(t => t.length <= 60));
+  assert.ok(r.body.shopee.titulos.every(t => t.length <= 100));
+  assert.ok(/22mm|branca/i.test(r.body.shopee.titulos.join(' ')));
 });
 
 test('títulos: com IA usa claude-opus-5-5, fallback padrão e corta no limite', async () => {
   process.env.ANTHROPIC_API_KEY = 'chave-falsa';
   let pedido = null;
-  class Falso { constructor() { this.beta = { messages: { parse: async p => { pedido = p; return { stop_reason: 'end_turn', parsed_output: { mercadolivre: ['Fita De Borda Adesiva 22mm Branca Pvc Rolo 20 Metros Para Moveis Mdf Acabamento'], shopee: ['a'], amazon: ['b'], dica: 'x' } }; } } }; } }
+  class Falso { constructor() { this.beta = { messages: { parse: async p => { pedido = p; return { stop_reason: 'end_turn', parsed_output: { mercadolivre: { titulos: ['Fita De Borda Adesiva 22mm Branca Pvc Rolo 20 Metros Para Moveis Mdf Acabamento'], descricao: 'd', destaques: ['1','2','3','4','5','6'] }, shopee: { titulos: ['a'], descricao: 'd', destaques: [] }, amazon: { titulos: ['b'], descricao: 'd', destaques: [] }, fichaTecnica: [], perguntas: [], dica: 'x' } }; } } }; } }
   const arm = criar(blobFalso());
   await arm.salvar(analisar(fx.termo, fx.respostas));
   const r = resFalsa();
@@ -104,7 +104,7 @@ test('títulos: com IA usa claude-opus-5-5, fallback padrão e corta no limite',
   assert.strictEqual(pedido.model, 'claude-opus-5-5');
   assert.strictEqual(pedido.fallbacks, 'default');
   assert.ok(pedido.messages[0].content.includes('Autocompletar'));
-  assert.ok(r.body.mercadolivre[0].length <= 60);
+  assert.ok(r.body.mercadolivre.titulos[0].length <= 60); assert.strictEqual(r.body.mercadolivre.destaques.length, 5);
   // recusa: cai para a regra
   class Recusa { constructor() { this.beta = { messages: { parse: async () => ({ stop_reason: 'refusal', parsed_output: null }) } }; } }
   const r2 = resFalsa();

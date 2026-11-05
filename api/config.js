@@ -4,6 +4,7 @@
 const { exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
 const { PADRAO, TAXAS_PADRAO } = require('../lib/margem');
+const { FAIXAS_PADRAO } = require('../lib/frete');
 
 const MAX_VIGIADAS = 15;
 const num = (v, min, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined; };
@@ -17,6 +18,7 @@ function completa(c) {
   return {
     imposto: c.imposto ?? PADRAO.imposto, margemAlvo: c.margemAlvo ?? PADRAO.margemAlvo, taxas,
     custos: c.custos || {}, vigiadas: c.vigiadas || [],
+    fretes: { ...FAIXAS_PADRAO, ...(c.fretes || {}) },
   };
 }
 
@@ -47,7 +49,20 @@ async function handler(req, res, deps = {}) {
       } else if (b.acao === 'custo') {
         const k = armazem.slug(b.termo);
         c.custos = c.custos || {};
-        c.custos[k] = { custo: num(b.custo, 0, 1e6) || 0, embalagem: num(b.embalagem, 0, 1e6) || 0 };
+        c.custos[k] = {
+          custo: num(b.custo, 0, 1e6) || 0, embalagem: num(b.embalagem, 0, 1e6) || 0,
+          pesoKg: num(b.pesoKg, 0, 1000) || 0, comp: num(b.comp, 0, 1000) || 0, larg: num(b.larg, 0, 1000) || 0, alt: num(b.alt, 0, 1000) || 0,
+          meta: num(b.meta, 0, 1e8) || 0, detalhes: String(b.detalhes || '').slice(0, 800),
+        };
+      } else if (b.acao === 'fretes') {
+        if (b.restaurar) delete c.fretes;
+        else {
+          c.fretes = c.fretes || {};
+          for (const [id, faixas] of Object.entries(b.fretes || {})) {
+            if (!FAIXAS_PADRAO[id] || !Array.isArray(faixas)) continue;
+            c.fretes[id] = faixas.map(f => [num(f[0], 0, 1000), num(f[1], 0, 5000)]).filter(f => f[0] > 0 && f[1] != null).sort((x, y) => x[0] - y[0]).slice(0, 20);
+          }
+        }
       } else if (b.acao === 'vigiar') {
         const k = armazem.slug(b.termo);
         const lista = (c.vigiadas || []).filter(v => v.chave !== k);
