@@ -227,3 +227,21 @@ pre.desc{white-space:pre-wrap;font:inherit;font-size:.86rem;background:var(--car
 .alertas li{display:flex;gap:10px;align-items:flex-start;background:var(--card-2);border-radius:10px;padding:9px 12px;font-size:.88rem}
 .alertas li > span{font-size:1.1rem}
 .frete-tab input{width:90px}
+
+/* preço ideal: régua de preços */
+.regua{position:relative;height:46px;margin:14px 6px 2px;border-bottom:2px solid var(--line)}
+.regua-faixa{position:absolute;bottom:0;height:30px;background:var(--brand-soft);border-radius:6px 6px 0 0}
+.regua-ponto{position:absolute;bottom:6px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);border:2px solid var(--card)}
+.regua-ponto.forte{width:15px;height:15px;bottom:3px}
+.regua-min{position:absolute;bottom:0;width:2px;height:40px;background:var(--bad);transform:translateX(-50%)}
+.regua-sug{position:absolute;top:-6px;transform:translateX(-50%);color:var(--brand);font-size:.9rem;font-weight:800}
+ol.plano{margin:0;padding-left:20px;display:grid;gap:8px;font-size:.9rem}
+.cat-tab input{padding:6px 8px;font-size:.84rem}
+code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem;word-break:break-all}
+@media (max-width:860px){
+  #nav{display:flex!important;overflow-x:auto;gap:2px;scrollbar-width:none}
+  #nav button{flex:0 0 auto;min-width:68px}
+}
+
+.cat-tab{min-width:1180px}
+.cat-tab td:last-child,.cat-tab td:nth-last-child(2){white-space:normal;min-width:150px}

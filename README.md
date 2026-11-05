@@ -11,7 +11,10 @@ Painel online para validar se um produto vende, a partir de uma palavra-chave:
 ## Telas
 
 - **📊 Painel**: números do time, melhores produtos, mapa preço × nota, como estão as ideias, anúncios por canal, vigiadas e todas as pesquisas.
-- **🔎 Pesquisar**: nota de validação, **🏆 onde vender** (nota de 0 a 100 por canal com os motivos: demanda, concorrência, preço e margem), **calculadora de margem por canal** (custo, embalagem, imposto, **comissão oficial da categoria no Mercado Livre**, taxa fixa e **frete pelo peso real ou cubado**), **meta de lucro do mês** (unidades a vender e produzir), **kits** (2, 3, 5, 10 unidades), anúncios de cada marketplace com logo, Google Shopping com fotos, distribuição de preços, evolução no tempo, SEO, demanda **anúncio pronto** (títulos, descrição, destaques, ficha técnica e respostas para as perguntas, com IA) e **🔗 relatório para compartilhar** (link público só de leitura, salva em PDF).
+- **🔎 Pesquisar**: nota de validação, **🏆 onde vender** (nota de 0 a 100 por canal com os motivos: demanda, concorrência, preço e margem), **calculadora de margem por canal** (custo, embalagem, imposto, **comissão oficial da categoria no Mercado Livre**, taxa fixa e **frete pelo peso real ou cubado**), **meta de lucro do mês** (unidades a vender e produzir), **kits** (2, 3, 5, 10 unidades), anúncios de cada marketplace com logo, Google Shopping com fotos, distribuição de preços, evolução no tempo, SEO, demanda **🎯 preço ideal por canal**, **🧭 plano de vendas**, **🗣️ reclamações dos compradores** (avaliações dos concorrentes), **📸 roteiro de fotos**, **anúncio pronto** (títulos, descrição, destaques, ficha técnica e respostas para as perguntas, com IA) e **🔗 relatório para compartilhar** (link público só de leitura, salva em PDF).
+- **📦 Catálogo**: produtos da fábrica e variações (largura, comprimento), custo, peso e medidas; ranking de lucro e melhor canal de cada variação; planilha de cadastro (CSV).
+- **🛒 Minha loja**: conta do Mercado Livre conectada (OAuth, só leitura) com vendas, visitas e conversão dos últimos 30 dias por anúncio.
+- **📅 Calendário**: datas de venda (11.11, Black Friday, Natal...) e quanto produzir antes.
 - **📋 Lote**: até 20 palavras de uma vez, com ranking.
 - **🔔 Vigiadas**: até 15 palavras e até 20 **anúncios de concorrentes** checados toda segunda (cron da Vercel), com variação de preço, vendidos e nota, e **alertas** do que mudou (no painel e, se configurado, num webhook para WhatsApp/e-mail).
 - **⚙️ Taxas**: comissões, taxas fixas, frete, imposto e meta de margem, iguais para o time.
@@ -48,6 +51,7 @@ Cada pesquisa nova gasta **6 créditos** do Serper.
 | `ANTHROPIC_API_KEY` | Opcional: títulos de anúncio escritos pela IA |
 | `ALERTA_WEBHOOK_URL` | Opcional: recebe os alertas da semana (ex.: um webhook do n8n que manda no WhatsApp ou e-mail) |
 | `ML_ACCESS_TOKEN` | Opcional: só se o Mercado Livre passar a exigir login para consultar a comissão da categoria |
+| `ML_CLIENT_ID` / `ML_CLIENT_SECRET` | Opcional: app do Mercado Livre para conectar a sua loja (aba Minha loja) |
 | `CRON_SECRET` | Senha do cron semanal (a Vercel envia sozinha) |
 | `BLOB_READ_WRITE_TOKEN` | Criada sozinha ao ligar o Blob `radar-marketplace-dados` ao projeto |
 

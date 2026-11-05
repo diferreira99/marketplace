@@ -12,7 +12,7 @@ const num = (v, min, max) => { const n = Number(v); return Number.isFinite(n) ? 
 function completa(c) {
   const taxas = {};
   for (const [id, t] of Object.entries(TAXAS_PADRAO)) {
-    const salvo = Object.fromEntries(Object.entries((c.taxas || {})[id] || {}).filter(([, v]) => v != null && Number.isFinite(Number(v))));
+    const salvo = Object.fromEntries(Object.entries((c.taxas || {})[id] || {}).filter(([k, v]) => k === 'faixas' ? Array.isArray(v) && v.length : v != null && Number.isFinite(Number(v))));
     taxas[id] = { ...t, ...salvo };
   }
   return {
@@ -44,6 +44,7 @@ async function handler(req, res, deps = {}) {
             comissao: num(t.comissao, 0, 60), fixoAbaixo: num(t.fixoAbaixo, 0, 500), limiteFixo: num(t.limiteFixo, 0, 1e9),
             freteAcima: num(t.freteAcima, 0, 500), tetoComissao: num(t.tetoComissao, 0, 10000),
           };
+          if (Array.isArray(t.faixas)) c.taxas[id].faixas = t.faixas.map(f => [num(f[0], 0, 1e9), num(f[1], 0, 1e9), num(f[2], 0, 60), num(f[3], 0, 500)]).filter(f => f.every(v => v != null) && f[1] > f[0]).slice(0, 8);
         }
         if (b.restaurar) { delete c.taxas; delete c.imposto; delete c.margemAlvo; }
       } else if (b.acao === 'custo') {

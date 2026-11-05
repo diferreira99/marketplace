@@ -134,7 +134,7 @@ function irPara(aba) {
   $$('#nav button').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button').forEach(b => b.onclick = () => irPara(b.dataset.aba));
@@ -275,6 +275,8 @@ function pintarResultado(d, salvo) {
   '</div>' +
   '<div class="card" style="margin-top:14px" id="card-onde"></div>' +
   '<div class="card" style="margin-top:14px" id="card-margem"></div>' +
+  '<div class="card" style="margin-top:14px" id="card-preco"></div>' +
+  '<div class="card" style="margin-top:14px" id="card-plano"></div>' +
   '<div class="grid g3">' + cardMp('mercadolivre', mp.mercadolivre) + cardMp('shopee', mp.shopee) + cardMp('amazon', mp.amazon) + '</div>' +
   '<div class="card" style="margin-top:14px" id="card-titulos"><h2>✍️ Anúncio pronto <span class="tag">títulos, descrição, destaques, ficha técnica e respostas</span></h2>' +
     '<label class="small muted" style="display:grid;gap:4px;margin-bottom:8px">Dados do seu produto (marca, material, medidas, cores, o que vem na caixa): a IA usa como verdade e não inventa<textarea id="an-detalhes" style="min-height:70px" placeholder="ex.: marca XYZ, PVC, 22 mm x 20 m, branca e preta, rolo com 1 unidade">' + esc(((cfg().custos || {})[slug(d.termo)] || {}).detalhes || '') + '</textarea></label>' +
@@ -288,6 +290,8 @@ function pintarResultado(d, salvo) {
   '</div>' +
   (comFoto.length ? '<div class="card" style="margin-top:14px"><h2>🖼️ O que a concorrência vende <span class="tag">' + comFoto.length + ' produtos</span></h2><div class="galeria">' +
     comFoto.map(i => '<a href="' + esc(i.link) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(i.imagem) + '" alt="' + esc(i.titulo) + '"><span><b>' + brl(i.preco) + '</b> · ' + esc(i.loja) + '<br>' + esc(String(i.titulo).slice(0, 50)) + '</span></a>').join('') + '</div></div>' : '') +
+  '<div class="card" style="margin-top:14px" id="card-aval"></div>' +
+  '<div class="card" style="margin-top:14px" id="card-fotos"></div>' +
   '<div class="card" style="margin-top:14px" id="card-serie"></div>' +
   '<div class="grid g2">' +
     '<div class="card"><h2>🔎 SEO · Top 10 do Google <span class="tag">' + s.marketplacesNoTop + ' marketplaces no top</span></h2>' +
@@ -306,6 +310,8 @@ function pintarResultado(d, salvo) {
   $('#bt-compartilhar').onclick = () => compartilharRelatorio(d);
   pintarMargem(d);
   pintarSerie(d.termo);
+  pintarAvaliacoes(d);
+  pintarFotos(d);
 }
 
 // 🔎 SEO interno: o que é digitado dentro do Mercado Livre e da Amazon
@@ -423,6 +429,8 @@ function pintarMargem(d) {
         '</tbody></table></div><p class="aviso">Kit = n unidades num anúncio só: a comissão e a taxa fixa são cobradas uma vez, o frete sai pelo peso total e há um desconto pequeno para o comprador. "+R$ por unidade" é quanto cada unidade rende a mais do que vendida sozinha.</p>';
       $$('#m-kits [data-pesq]').forEach(b => b.onclick = () => { $('#q').value = b.dataset.pesq; pesquisar(b.dataset.pesq); });
     } else { $('#m-kits').innerHTML = ''; S.extras.kits = null; }
+    pintarPrecoIdeal(d, custo ? r : null);
+    pintarPlano(d);
   }
   ['#m-custo', '#m-emb', '#m-meta', '#m-peso', '#m-c', '#m-l', '#m-a'].forEach(id => $(id).oninput = calc);
   $('#m-salvar').onclick = async () => {
@@ -610,11 +618,19 @@ function pintarTaxas() {
     '<div class="card taxas-tab" style="margin-top:14px"><div class="calc-entradas"><label>Imposto sobre a venda (%)<input type="number" step="0.1" id="tx-imp" value="' + c.imposto + '"></label><label>Meta de margem (%)<input type="number" step="1" id="tx-alvo" value="' + c.margemAlvo + '"></label></div>' +
     '<div class="tabela-wrap"><table><thead><tr><th>Canal</th>' + campos.map(([, n]) => '<th class="num">' + n + '</th>').join('') + '</tr></thead><tbody>' +
     Object.entries(c.taxas).map(([id, t]) => '<tr><td>' + logo(canalDaTaxa(id)) + ' ' + esc(t.nome) + '</td>' + campos.map(([k]) => '<td class="num"><input type="number" step="0.01" data-tx="' + id + '.' + k + '" value="' + (t[k] >= 1e8 ? '' : t[k]) + '"' + (k === 'limiteFixo' && t[k] >= 1e8 ? ' placeholder="sempre"' : '') + '></td>').join('') + '</tr>').join('') +
-    '</tbody></table></div><div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="pri" id="tx-salvar">Salvar para o time</button><button type="button" id="tx-padrao">Voltar ao padrão</button><span class="small muted" id="tx-est"></span></div>' +
+    '</tbody></table></div>' +
+    '<h2 style="margin-top:16px">' + logo('shopee') + ' Shopee: comissão por faixa de preço <span class="tag">substitui a comissão e a taxa fixa da linha da Shopee</span></h2>' +
+    '<div class="tabela-wrap"><table><thead><tr><th class="num">De (R$)</th><th class="num">Até (R$)</th><th class="num">Comissão %</th><th class="num">Fixo por item (R$)</th></tr></thead><tbody>' +
+    ((c.taxas.shopee && c.taxas.shopee.faixas) || []).map((f, i) => '<tr>' + f.map((v, j) => '<td class="num"><input type="number" step="0.01" data-sf="' + i + '.' + j + '" value="' + (v >= 1e8 ? '' : v) + '"' + (j === 1 && v >= 1e8 ? ' placeholder="sem limite"' : '') + '></td>').join('') + '</tr>').join('') +
+    '</tbody></table></div><p class="aviso">Referência nov/2026 (CNPJ): até R$ 79,99 → 20% + R$ 4 · R$ 80–99,99 → 14% + R$ 16 · R$ 100–199,99 → 14% + R$ 20 · R$ 200+ → 14% + R$ 26. Frete grátis incluso. Vendedor CPF paga + R$ 3 por item (some no fixo).</p>' +
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="pri" id="tx-salvar">Salvar para o time</button><button type="button" id="tx-padrao">Voltar ao padrão</button><span class="small muted" id="tx-est"></span></div>' +
     '<p class="aviso">Taxa fixa: cobrada por unidade quando o preço fica abaixo do limite. Frete: o que você paga do frete grátis quando o preço fica acima do limite. Deixe o limite vazio para a taxa fixa valer sempre.</p></div>';
   $('#tx-salvar').onclick = async () => {
     const taxas = {};
     $$('[data-tx]').forEach(i => { const [id, k] = i.dataset.tx.split('.'); taxas[id] = taxas[id] || {}; taxas[id][k] = i.value === '' ? (k === 'limiteFixo' ? 1e9 : 0) : Number(i.value); });
+    const faixas = [];
+    $$('[data-sf]').forEach(i => { const [l, col] = i.dataset.sf.split('.').map(Number); (faixas[l] = faixas[l] || [])[col] = i.value === '' ? (col === 1 ? 1e9 : 0) : Number(i.value); });
+    if (faixas.length) { taxas.shopee = taxas.shopee || {}; taxas.shopee.faixas = faixas.filter(f => f && f.length === 4); }
     try { S.cfg = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'taxas', imposto: Number($('#tx-imp').value), margemAlvo: Number($('#tx-alvo').value), taxas }) }); $('#tx-est').textContent = '✔ Salvo para todo o time.'; }
     catch (e) { erro(e.message); }
   };
@@ -643,7 +659,256 @@ function pintarTaxas() {
   };
 }
 
+// ───────────────────────── 🎯 PREÇO IDEAL ─────────────────────────
+function faixaPrecos(pi, cor) {
+  if (!pi.suficiente) return '<div class="vazio">' + esc(pi.motivo) + '</div>';
+  const vals = pi.pontos.map(p => p.preco).concat([pi.sugerido, pi.precoMinimo].filter(v => v > 0));
+  const lo = Math.min(...vals) * 0.95, hi = Math.max(...vals) * 1.05, X = v => (v - lo) / (hi - lo) * 100;
+  return '<div class="regua">' +
+    '<div class="regua-faixa" style="left:' + X(pi.p25) + '%;width:' + Math.max(1, X(pi.p50) - X(pi.p25)) + '%" data-tip="Faixa competitiva: ' + brl(pi.p25) + ' a ' + brl(pi.p50) + '"></div>' +
+    pi.pontos.map(p => '<span class="regua-ponto' + ((p.vendidos || 0) >= 100 ? ' forte' : '') + '" style="left:' + X(p.preco) + '%;background:' + cor + '" data-tip="' + esc(brl(p.preco) + ((p.vendidos != null) ? ' · ' + num(p.vendidos) + '+ vendidos' : '')) + '"></span>').join('') +
+    (pi.precoMinimo ? '<span class="regua-min" style="left:' + X(pi.precoMinimo) + '%" data-tip="Seu preço mínimo para a meta: ' + brl(pi.precoMinimo) + '"></span>' : '') +
+    '<span class="regua-sug" style="left:' + X(pi.sugerido) + '%" data-tip="Sugerido: ' + brl(pi.sugerido) + '">▼</span></div>' +
+    '<div class="eixo"><span>' + brl(lo) + '</span><span>' + brl(hi) + '</span></div>';
+}
+function pintarPrecoIdeal(d, margens) {
+  const box = $('#card-preco'); if (!box || !window.PrecoIdeal) return;
+  const linhas = Object.keys(CANAIS).map(k => {
+    const m = d.marketplaces[k];
+    const pontos = (m.itens || []).filter(i => i.anuncio && i.preco).map(i => ({ preco: i.preco, vendidos: i.vendidos }));
+    if (k !== 'mercadolivre' && d.shopping) d.shopping.itens.filter(i => i.preco && new RegExp(CANAIS[k].nome.split(' ')[0], 'i').test(i.loja || '')).forEach(i => pontos.push({ preco: i.preco, vendidos: null }));
+    const minimo = margens && margens[k] ? margens[k].precoMinimo : null;
+    return { k, pi: PrecoIdeal.precoIdeal(pontos, minimo) };
+  });
+  S.extras = Object.assign(S.extras || {}, { precoIdeal: Object.fromEntries(linhas.map(x => [x.k, { sugerido: x.pi.sugerido, p25: x.pi.p25, p50: x.pi.p50, situacao: x.pi.situacao }])) });
+  const SIT = { folga: ['✔', 'var-pos'], apertado: ['◐', ''], acima: ['✖', 'var-neg'], 'sem-custo': ['ⓘ', ''] };
+  box.innerHTML = '<h2>🎯 Preço ideal por canal <span class="tag">● concorrente · ● grande = 100+ vendidos · faixa = competitiva · | = seu mínimo · ▼ = sugerido</span></h2>' +
+    '<div class="grid g3" style="margin-top:0">' + linhas.map(({ k, pi }) => '<div class="onde-canal"><div class="onde-c">' + logo(k) + ' <b>' + CANAIS[k].nome + '</b>' + (pi.suficiente ? '<span class="badge" style="margin-left:auto">' + brl(pi.sugerido) + '</span>' : '') + '</div>' +
+      faixaPrecos(pi, CANAIS[k].cor) + (pi.suficiente ? '<p class="small ' + (SIT[pi.situacao] || [, ''])[1] + '">' + (SIT[pi.situacao] || ['', ''])[0] + ' ' + esc(pi.texto) + '</p>' : '') + '</div>').join('') + '</div>';
+}
+
+// ───────────────────────── 🗣️ RECLAMAÇÕES ─────────────────────────
+async function pintarAvaliacoes(d, atualizar) {
+  const box = $('#card-aval'); if (!box) return;
+  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">avaliações dos concorrentes no Mercado Livre</span></h2><div class="vazio"><span class="carregando"></span>Lendo avaliações…</div>';
+  let r;
+  try { r = await api('/api/avaliacoes', { method: 'POST', body: JSON.stringify({ termo: d.termo, atualizar: !!atualizar }) }); }
+  catch (e) { box.innerHTML = '<h2>🗣️ O que os compradores reclamam</h2><div class="vazio">' + esc(e.message) + '</div>'; return; }
+  if (!$('#card-aval') || S.atual !== d) return;
+  if (!r.anuncios) { box.innerHTML = '<h2>🗣️ O que os compradores reclamam</h2><div class="vazio">' + esc(r.motivo || 'Sem avaliações disponíveis.') + '</div>'; return; }
+  const ia = r.ia;
+  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">' + r.anuncios + ' anúncios · ' + r.lidas + ' avaliações lidas · <a href="#" id="aval-atualizar">atualizar</a></span></h2>' +
+    (ia ? '<div class="grid g2" style="margin-top:0"><div><b>Reclamações mais comuns</b><ul class="onde-lista contras">' + ia.reclamacoes.map(x => '<li>✖ <b>' + esc(x.tema) + '</b> (' + esc(x.quanto) + '): “' + esc(x.exemplo) + '”</li>').join('') + '</ul>' +
+        '<b style="display:block;margin-top:10px">O que elogiam</b><ul class="onde-lista pros">' + ia.elogios.map(x => '<li>✔ ' + esc(x) + '</li>').join('') + '</ul></div>' +
+        '<div><b>🏭 Melhore no produto</b><ul class="onde-lista">' + ia.melhoriasProduto.map(x => '<li>→ ' + esc(x) + '</li>').join('') + '</ul>' +
+        '<b style="display:block;margin-top:10px">📝 Deixe claro no anúncio</b><ul class="onde-lista">' + ia.melhoriasAnuncio.map(x => '<li>→ ' + esc(x) + '</li>').join('') + '</ul></div></div>'
+      : (r.temas.length ? barrasH(r.temas.map(t => ({ rotulo: t.tema, valor: t.vezes, cor: 'var(--bad)', dica: esc(t.tema) + ': ' + t.vezes + '<br>' + t.exemplos.map(e => '“' + esc(e) + '”').join('<br>') })), {}) +
+          '<div class="paa" style="margin-top:10px">' + r.temas.slice(0, 4).map(t => '<details><summary>' + esc(t.tema) + ' (' + t.vezes + ')</summary>' + t.exemplos.map(e => '<p class="small">“' + esc(e) + '”</p>').join('') + '</details>').join('') + '</div>'
+        : '<div class="vazio">Das ' + r.lidas + ' avaliações lidas, ' + r.negativos + ' são negativas e nenhuma cai nos temas comuns. Bom sinal: o produto dos concorrentes agrada.</div>') +
+        '<p class="aviso">' + r.negativos + ' avaliações negativas e ' + r.positivos + ' positivas. Com a chave da IA, o painel resume e sugere as melhorias.</p>');
+  const at = $('#aval-atualizar'); if (at) at.onclick = e => { e.preventDefault(); pintarAvaliacoes(d, true); };
+}
+
+// ───────────────────────── 📸 FOTOS ─────────────────────────
+function pintarFotos(d) {
+  const box = $('#card-fotos'); if (!box) return;
+  const t = d.termo, det = ((cfg().custos || {})[slug(t)] || {}).detalhes || '';
+  const cenas = [
+    ['Capa (fundo branco)', `Foto de produto em estúdio, fundo 100% branco, ${t}${det ? ' (' + det + ')' : ''}, rolo inteiro e um pedaço desenrolado mostrando a espuma e o liner, luz suave, sem sombras duras, nítido, quadrado 1200x1200.`],
+    ['Uso real', `Mãos aplicando ${t} no verso de um espelho apoiado numa bancada de marcenaria, close nas tiras coladas em paralelo, luz natural de oficina, foto realista.`],
+    ['Resultado', `Espelho grande fixado na parede de um banheiro moderno, acabamento limpo, sem parafusos aparentes, ambiente claro, foto realista de catálogo.`],
+    ['Medidas', `Infográfico limpo em fundo branco com ${t} e setas indicando largura, espessura e comprimento do rolo, textos grandes e legíveis, estilo marketplace.`],
+    ['Comparação de larguras', `Vários rolos de ${t} lado a lado em larguras diferentes, etiquetas com a medida de cada um, fundo branco, organizado.`],
+    ['Prova de força', `Espelho pesado preso só com ${t}, legenda "segura X kg a cada 10 cm", estilo infográfico de marketplace, fundo claro.`],
+  ];
+  box.innerHTML = '<h2>📸 Fotos do anúncio <span class="tag">roteiro + pedidos prontos para IA de imagem</span></h2>' +
+    '<ul class="onde-lista" style="margin-bottom:10px"><li>→ <b>Mercado Livre:</b> capa com fundo branco puro, sem texto, logo ou marca d’água; mínimo 500 px (ideal 1200 px); até 10 fotos.</li>' +
+    '<li>→ <b>Shopee:</b> capa quadrada 1:1, 1024 px; pode usar selo e texto curto nas fotos secundárias; vídeo de até 60 s ajuda muito.</li>' +
+    '<li>→ <b>Amazon:</b> imagem principal com fundo branco RGB 255,255,255, produto ocupando 85% do quadro, mínimo 1000 px para ter zoom.</li></ul>' +
+    '<div class="tabela-wrap"><table><thead><tr><th>Foto</th><th>Pedido para a IA de imagem</th><th></th></tr></thead><tbody>' +
+    cenas.map(([n, p]) => '<tr><td><b>' + n + '</b></td><td class="small">' + esc(p) + '</td><td><button type="button" class="copiar" data-copiar="' + esc(p) + '">copiar</button></td></tr>').join('') + '</tbody></table></div>' +
+    '<p class="aviso">Para gerar as imagens, mande uma foto do produto aqui no chat comigo: eu gero as cenas a partir dela. A IA de imagem pode errar medidas e texto: use as fotos geradas como apoio, não como prova técnica.</p>';
+  $$('#card-fotos [data-copiar]').forEach(b => b.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(b.dataset.copiar); b.textContent = '✔ copiado'; });
+}
+
+// ───────────────────────── 🧭 PLANO DE VENDAS ─────────────────────────
+function pintarPlano(d) {
+  const box = $('#card-plano'); if (!box) return;
+  const x = S.extras || {}, rec = x.recomendacao, pi = x.precoIdeal || {}, m = x.margens || {};
+  const acoes = [];
+  const venc = rec && rec.vencedor;
+  if (venc) acoes.push(['Canal principal', `Comece ${venc === 'mercadolivre' ? 'pelo Mercado Livre' : venc === 'shopee' ? 'pela Shopee' : 'pela Amazon'}${pi[venc] && pi[venc].sugerido ? ` a ${brl(pi[venc].sugerido)}` : ''}. Concentre estoque e avaliações num canal antes de abrir os outros.`]);
+  if (m.mercadolivre && m.mercadolivrePremium) {
+    const dif = m.mercadolivre.lucro - m.mercadolivrePremium.lucro;
+    acoes.push(['Clássico ou Premium (ML)', dif > 0 ? `Comece no Clássico (rende ${brl(dif)} a mais por unidade). Crie um anúncio Premium igual quando tiver avaliações: ele aparece com parcelamento sem juros e costuma converter mais.` : 'O Premium sai melhor no seu preço.']);
+  }
+  if (x.kits) {
+    const melhor = Object.entries(x.kits).map(([n, k]) => [n, k.canais.mercadolivre && k.canais.mercadolivre.ganhoVsUnidade]).filter(([, g]) => g > 0).sort((a, b) => b[1] - a[1])[0];
+    if (melhor) acoes.push(['Kit', `Crie o Kit ${melhor[0]}: cada unidade rende ${brl(melhor[1])} a mais que vendida sozinha, e passar de R$ 79 dá frete grátis ao comprador (destaque na busca).`]);
+  }
+  acoes.push(['Variações num anúncio só', 'Agrupe as larguras como variações do mesmo anúncio (no ML, use "variações" ou o catálogo). As vendas e avaliações se somam e o anúncio sobe na busca mais rápido do que vários anúncios separados.']);
+  acoes.push(['Primeiras vendas', 'Os 10 a 20 primeiros pedidos destravam o algoritmo. Comece com o preço na faixa competitiva, peça avaliação na embalagem (cartão com QR) e responda perguntas em menos de 1 hora.']);
+  acoes.push(['Anúncios pagos', 'Ligue o Mercado Ads / Shopee Ads só no anúncio principal, com orçamento diário pequeno, e meça o ACOS (gasto ÷ venda). Corte palavras que gastam sem vender.']);
+  acoes.push(['Full e prazo', 'Quando vender todo dia, mande estoque para o Mercado Livre Full (entrega em 1 dia, selo Full): costuma aumentar muito a conversão.']);
+  acoes.push(['Vender para o profissional', 'Vidraçarias, marcenarias e lojas de material de construção compram em volume. Ofereça caixa fechada com preço de atacado (mesmo anúncio com "kit 10"/"kit 20" ou venda direta pelo WhatsApp).']);
+  acoes.push(['Datas', 'Prepare estoque 30 dias antes das datas da aba 📅 Calendário (Black Friday e 11.11 são as maiores).']);
+  box.innerHTML = '<h2>🧭 Plano de vendas <span class="tag">ações práticas a partir desta pesquisa</span></h2><ol class="plano">' + acoes.map(([t, a]) => '<li><b>' + esc(t) + ':</b> ' + esc(a) + '</li>').join('') + '</ol>';
+}
+
+// ───────────────────────── 📦 CATÁLOGO ─────────────────────────
+let CAT = null;
+const MODELO_EVA = { nome: 'Fita de EVA para espelho autocolante', palavraChave: 'fita eva espelho dupla face', marca: '', detalhes: 'Espuma de EVA com adesivo dos dois lados, para fixar espelho', variacoes: [
+  { rotulo: '12 mm x 2 m', palavraChave: 'fita dupla face espuma 12mm espelho' }, { rotulo: '19 mm x 2 m', palavraChave: 'fita dupla face espuma 19mm espelho' },
+  { rotulo: '25 mm x 2 m', palavraChave: 'fita dupla face espuma 25mm espelho' }, { rotulo: '19 mm x 10 m', palavraChave: 'fita eva espelho 19mm 10 metros' },
+  { rotulo: '19 mm x 20 m (profissional)', palavraChave: 'fita eva espelho 19mm 20 metros' }] };
+async function pintarCatalogo() {
+  const box = $('#aba-catalogo');
+  box.innerHTML = '<h1 class="titulo-aba">Catálogo da fábrica</h1><p class="sub-aba">Cadastre seus produtos e as variações (largura, comprimento...). O Radar mostra quais dão mais lucro e onde vender cada uma.</p><div id="cat-corpo"><div class="vazio"><span class="carregando"></span>carregando…</div></div>';
+  try { CAT = (await api('/api/catalogo')).produtos || []; } catch (e) { $('#cat-corpo').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>'; return; }
+  desenharCatalogo();
+}
+function variacaoAnalise(v, prod) {
+  const termo = (v.palavraChave || (prod.palavraChave + ' ' + v.rotulo)).trim();
+  const d = ls.get('radar_dados', {})[slug(termo)] || null, h = S.hist.find(x => slug(x.termo) === slug(termo));
+  if (!d && !h) return { termo, pesquisado: false };
+  const c = cfg();
+  const precos = {}; Object.keys(c.taxas).forEach(id => { const m = d && d.marketplaces[canalDaTaxa(id)]; precos[id] = v.preco || (m && m.precos.mediana) || (d ? d.precos.mediana : h.precoMediano) || 0; });
+  const peso = Frete.pesoConsiderado(v.pesoKg, v.comp, v.larg, v.alt), fretes = {};
+  Object.keys(c.taxas).forEach(id => { const f = Frete.fretePorPeso(canalDaTaxa(id), peso.considerado, c.fretes); if (f != null) fretes[id] = f; });
+  const r = Margem.calcular({ precos, custo: v.custo, embalagem: v.embalagem, imposto: c.imposto, margemAlvo: c.margemAlvo, taxas: c.taxas, fretes });
+  const melhor = Object.entries(r).filter(([id]) => id !== 'mercadolivrePremium').sort((a, b) => b[1].lucro - a[1].lucro)[0];
+  const rec = d && window.Recomendacao ? Recomendacao.recomendar(d, v.custo ? { mercadolivre: r.mercadolivre, shopee: r.shopee, amazon: r.amazon } : null) : null;
+  return { termo, pesquisado: true, nota: h ? h.nota : d.validacao.nota, nivel: h ? h.nivel : d.validacao.nivel, precoMediano: h ? h.precoMediano : d.precos.mediana, melhor, rec, r };
+}
+function desenharCatalogo() {
+  const box = $('#cat-corpo');
+  const modelo = !CAT.some(p => /eva/i.test(p.nome)) ? '<button type="button" class="sec" id="cat-modelo">➕ Usar modelo: Fita de EVA para espelho (5 variações)</button> ' : '';
+  let h = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">' + modelo + '<button type="button" id="cat-novo">➕ Novo produto</button>' + (CAT.length ? ' <button type="button" id="cat-csv">⬇️ Planilha de cadastro (CSV)</button>' : '') + '</div>';
+  if (!CAT.length) { box.innerHTML = h + '<div class="card"><div class="vazio">Nenhum produto ainda.</div></div>'; ligarCatalogo(); return; }
+  const ranking = [];
+  CAT.forEach(p => {
+    const linhas = p.variacoes.map(v => ({ v, a: variacaoAnalise(v, p) }));
+    linhas.forEach(x => { if (x.a.pesquisado && x.a.melhor && x.v.custo) ranking.push({ rotulo: p.nome.slice(0, 22) + ' · ' + x.v.rotulo, valor: Math.max(0, x.a.melhor[1].lucro), dica: esc(x.v.rotulo) + '<br>Melhor: ' + esc(x.a.melhor[1].nome) + ' · ' + brl(x.a.melhor[1].lucro) + ' (' + pct(x.a.melhor[1].margem) + ')<br>Nota ' + x.a.nota }); });
+    h += '<div class="card" style="margin-top:14px" data-prod="' + p.id + '"><h2>📦 ' + esc(p.nome) + ' <span class="tag">palavra-chave: “' + esc(p.palavraChave || '—') + '”</span></h2>' +
+      '<div class="tabela-wrap"><table class="cat-tab"><thead><tr><th>Variação</th><th>Palavra-chave</th><th class="num">Custo</th><th class="num">Embal.</th><th class="num">Peso kg</th><th class="num">C×L×A cm</th><th class="num">Seu preço</th><th class="num">Nota</th><th class="num">Preço mercado</th><th>Melhor canal (lucro/un.)</th><th></th></tr></thead><tbody>' +
+      linhas.map(({ v, a }) => '<tr data-var="' + v.id + '"><td><input data-c="rotulo" value="' + esc(v.rotulo) + '" style="width:130px"></td><td><input data-c="palavraChave" value="' + esc(v.palavraChave) + '" placeholder="' + esc(p.palavraChave + ' ' + v.rotulo) + '" style="width:190px"></td>' +
+        ['custo', 'embalagem', 'pesoKg'].map(k => '<td class="num"><input type="number" step="0.01" data-c="' + k + '" value="' + (v[k] || '') + '" style="width:72px"></td>').join('') +
+        '<td class="num"><input type="number" data-c="comp" value="' + (v.comp || '') + '" style="width:48px">×<input type="number" data-c="larg" value="' + (v.larg || '') + '" style="width:48px">×<input type="number" data-c="alt" value="' + (v.alt || '') + '" style="width:48px"></td>' +
+        '<td class="num"><input type="number" step="0.01" data-c="preco" value="' + (v.preco || '') + '" placeholder="mediana" style="width:80px"></td>' +
+        (a.pesquisado ? '<td class="num">' + nivelTag(a.nivel).replace(NIVEL[a.nivel].nome, a.nota) + '</td><td class="num">' + brl(a.precoMediano) + '</td><td>' + (v.custo && a.melhor ? logo(canalDaTaxa(a.melhor[0])) + ' <b class="' + (a.melhor[1].lucro > 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(a.melhor[1].lucro) + '</b> <span class="small muted">' + pct(a.melhor[1].margem) + '</span>' : '<span class="small muted">informe o custo</span>') + (a.rec && a.rec.vencedor ? '<div class="small muted">🏆 ' + esc(a.rec.ranking[0].nome) + ' ' + a.rec.ranking[0].nota + '/100</div>' : '') + '</td>'
+          : '<td colspan="3"><button type="button" class="link" data-pesquisar="' + esc(a.termo) + '">🔎 pesquisar “' + esc(a.termo) + '”</button></td>') +
+        '<td style="white-space:nowrap">' + (a.pesquisado ? '<button type="button" class="link" data-abrir="' + esc(a.termo) + '" title="Abrir pesquisa">↗</button> ' : '') + '<button type="button" class="link" data-tirar-var="' + v.id + '" title="Tirar variação">✖</button></td></tr>').join('') +
+      '</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button type="button" class="pri" data-salvar-prod="' + p.id + '">Salvar</button><button type="button" data-add-var="' + p.id + '">➕ Variação</button><button type="button" data-pesq-todas="' + p.id + '">🔎 Pesquisar as não pesquisadas</button><button type="button" data-editar-prod="' + p.id + '">✏️ Nome e palavra-chave</button><button type="button" class="link" data-remover-prod="' + p.id + '">🗑️ Remover produto</button><span class="small muted" data-est="' + p.id + '"></span></div></div>';
+  });
+  if (ranking.length) h = h.replace('</div>', '</div><div class="card" style="margin-top:14px"><h2>🏆 Ranking de lucro por unidade (melhor canal de cada variação)</h2>' + barrasH(ranking.sort((a, b) => b.valor - a.valor), { formato: brl }) + '</div>');
+  box.innerHTML = h;
+  ligarCatalogo();
+}
+function lerProduto(id) {
+  const p = JSON.parse(JSON.stringify(CAT.find(x => x.id === id)));
+  $$('[data-prod="' + id + '"] tr[data-var]').forEach(tr => {
+    const v = p.variacoes.find(x => x.id === tr.dataset.var); if (!v) return;
+    tr.querySelectorAll('[data-c]').forEach(i => { const k = i.dataset.c; v[k] = i.type === 'number' ? (Number(i.value) || 0) : i.value.trim(); });
+  });
+  return p;
+}
+async function salvarProduto(p, est) {
+  try { const r = await api('/api/catalogo', { method: 'POST', body: JSON.stringify({ acao: 'salvar', produto: p }) }); CAT = r.produtos; if (est) est.textContent = '✔ salvo'; return r.produto; }
+  catch (e) { erro(e.message); return null; }
+}
+function ligarCatalogo() {
+  const m = $('#cat-modelo'); if (m) m.onclick = async () => { await salvarProduto(MODELO_EVA); desenharCatalogo(); };
+  $('#cat-novo').onclick = async () => { const nome = prompt('Nome do produto:'); if (!nome) return; const pc = prompt('Palavra-chave principal (como o cliente busca):', nome.toLowerCase()) || ''; await salvarProduto({ nome, palavraChave: pc, variacoes: [{ rotulo: 'padrão' }] }); desenharCatalogo(); };
+  const csv = $('#cat-csv'); if (csv) csv.onclick = exportarCSV;
+  $$('[data-salvar-prod]').forEach(b => b.onclick = async () => { await salvarProduto(lerProduto(b.dataset.salvarProd), $('[data-est="' + b.dataset.salvarProd + '"]')); desenharCatalogo(); });
+  $$('[data-add-var]').forEach(b => b.onclick = async () => { const p = lerProduto(b.dataset.addVar); p.variacoes.push({ rotulo: 'nova' }); await salvarProduto(p); desenharCatalogo(); });
+  $$('[data-tirar-var]').forEach(b => b.onclick = async () => { const id = b.closest('[data-prod]').dataset.prod, p = lerProduto(id); p.variacoes = p.variacoes.filter(v => v.id !== b.dataset.tirarVar); await salvarProduto(p); desenharCatalogo(); });
+  $$('[data-editar-prod]').forEach(b => b.onclick = async () => { const p = lerProduto(b.dataset.editarProd); const n = prompt('Nome do produto:', p.nome); if (n == null) return; const pc = prompt('Palavra-chave principal:', p.palavraChave); if (pc == null) return; const det = prompt('Dados do produto (marca, material...) para o anúncio:', p.detalhes || ''); Object.assign(p, { nome: n, palavraChave: pc, detalhes: det || '' }); await salvarProduto(p); desenharCatalogo(); });
+  $$('[data-remover-prod]').forEach(b => b.onclick = async () => { if (!confirm('Remover o produto e as variações do catálogo?')) return; try { CAT = (await api('/api/catalogo', { method: 'POST', body: JSON.stringify({ acao: 'remover', id: b.dataset.removerProd }) })).produtos; } catch (e) { erro(e.message); } desenharCatalogo(); });
+  $$('[data-pesquisar]').forEach(b => b.onclick = async () => { const id = b.closest('[data-prod]').dataset.prod; await salvarProduto(lerProduto(id)); pesquisar(b.dataset.pesquisar); });
+  $$('[data-pesq-todas]').forEach(b => b.onclick = async () => {
+    const p = lerProduto(b.dataset.pesqTodas); await salvarProduto(p);
+    const termos = p.variacoes.map(v => variacaoAnalise(v, p)).filter(a => !a.pesquisado).map(a => a.termo);
+    if (!termos.length) return alert('Todas as variações já foram pesquisadas.');
+    if (!confirm(termos.length + ' pesquisa(s), até ' + termos.length * 6 + ' créditos do Serper. Continuar?')) return;
+    const est = $('[data-est="' + p.id + '"]');
+    for (let i = 0; i < termos.length; i++) { est.textContent = 'Pesquisando ' + (i + 1) + ' de ' + termos.length + '…'; try { const d = await api('/api/pesquisa', { method: 'POST', body: JSON.stringify({ termo: termos[i] }) }); guardar(d); } catch (e) { erro(e.message); break; } }
+    desenharCatalogo();
+  });
+}
+// 📄 Planilha de cadastro em massa (CSV para abrir no Excel/Google Planilhas e copiar para o modelo do canal)
+async function exportarCSV() {
+  const linhas = [['Produto', 'Variação', 'SKU', 'Título Mercado Livre', 'Título Shopee', 'Título Amazon', 'Descrição', 'Destaques', 'Preço sugerido ML', 'Preço sugerido Shopee', 'Preço sugerido Amazon', 'Custo', 'Peso (kg)', 'Comprimento (cm)', 'Largura (cm)', 'Altura (cm)', 'Estoque', 'Marca', 'Palavra-chave']];
+  for (const p of CAT) for (const v of p.variacoes) {
+    const a = variacaoAnalise(v, p);
+    let an = null;
+    try { an = a.pesquisado ? await api('/api/historico?anuncio=1&termo=' + encodeURIComponent(a.termo)) : null; } catch (e) { an = null; }
+    const t = k => an && an[k] && an[k].titulos ? an[k].titulos[0] : (p.nome + ' ' + v.rotulo);
+    const pis = a.pesquisado && a.r ? a.r : null;
+    linhas.push([p.nome, v.rotulo, v.sku, t('mercadolivre'), t('shopee'), t('amazon'), an && an.mercadolivre ? an.mercadolivre.descricao : '', an && an.mercadolivre ? an.mercadolivre.destaques.join(' | ') : '',
+      pis ? (pis.mercadolivre.precoMinimo || '') : '', pis ? (pis.shopee.precoMinimo || '') : '', pis ? (pis.amazon.precoMinimo || '') : '', v.custo, v.pesoKg, v.comp, v.larg, v.alt, v.estoque || '', p.marca, a.termo]);
+  }
+  const cel = x => { const s = String(x == null ? '' : x).replace(/\r?\n/g, ' ⏎ '); return /[";]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const texto = '﻿' + linhas.map(l => l.map(cel).join(';')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' })); a.download = 'radar-cadastro-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
+}
+
+// ───────────────────────── 🛒 MINHA LOJA (Mercado Livre) ─────────────────────────
+async function pintarLoja() {
+  const box = $('#aba-loja');
+  box.innerHTML = '<h1 class="titulo-aba">Minha loja no Mercado Livre</h1><p class="sub-aba">Suas vendas, visitas e conversão reais dos últimos 30 dias, anúncio por anúncio.</p><div id="loja-corpo"><div class="vazio"><span class="carregando"></span>carregando…</div></div>';
+  const q = new URLSearchParams(location.search).get('ml');
+  if (q) { erro(q === 'ok' ? '' : 'Não consegui conectar ao Mercado Livre (' + q + '). Tente de novo.'); history.replaceState(null, '', location.pathname + '#loja'); }
+  let r;
+  try { r = await api('/api/ml-conta'); } catch (e) { $('#loja-corpo').innerHTML = '<div class="vazio">' + esc(e.message) + '</div>'; return; }
+  const c = $('#loja-corpo'); if (!c) return;
+  if (!r.conectado) {
+    c.innerHTML = '<div class="card" style="margin-top:14px"><h2>' + logo('mercadolivre', true) + ' Conectar a sua conta</h2>' +
+      (r.configurado ? '<p>Você vai para o Mercado Livre, entra com a sua conta de vendedor e autoriza o Radar a <b>ler</b> seus anúncios, visitas e vendas. O Radar não altera nada na sua conta.</p><button type="button" class="pri" id="ml-conectar">Conectar Mercado Livre</button>' + (r.expirado ? '<p class="small muted">A autorização anterior venceu. Conecte de novo.</p>' : '')
+        : '<p>Para conectar, é preciso criar um app (gratuito) no Mercado Livre, uma vez só:</p><ol class="plano"><li>Entre em <b>developers.mercadolivre.com.br</b> com a conta de vendedor → <b>Criar aplicação</b>.</li><li>Em <b>URL de redirect</b>, coloque exatamente: <code>' + esc(r.redirect) + '</code></li><li>Em permissões, marque leitura de <b>usuários, itens, pedidos e métricas</b>.</li><li>Copie o <b>Client ID</b> e o <b>Client Secret</b> para a Vercel como <code>ML_CLIENT_ID</code> e <code>ML_CLIENT_SECRET</code> e me avise para eu publicar de novo.</li></ol>') + '</div>';
+    const b = $('#ml-conectar'); if (b) b.onclick = async () => { try { const x = await api('/api/ml-conta', { method: 'POST', body: JSON.stringify({ acao: 'conectar' }) }); location.href = x.url; } catch (e) { erro(e.message); } };
+    return;
+  }
+  if (r.erro) { c.innerHTML = '<div class="vazio">' + esc(r.erro) + '</div>'; return; }
+  const t = r.totais;
+  c.innerHTML = '<div class="grid g4">' +
+    '<div class="kpi"><div class="ic">🧾</div><div class="l">Pedidos (30 dias)</div><div class="v">' + num(t.pedidos) + '</div><div class="d">' + num(t.unidades) + ' unidades</div></div>' +
+    '<div class="kpi"><div class="ic">💰</div><div class="l">Faturamento (30 dias)</div><div class="v">' + brl0(t.faturamento) + '</div><div class="d">' + (t.unidades ? 'ticket ' + brl(t.faturamento / Math.max(1, t.pedidos)) : '—') + '</div></div>' +
+    '<div class="kpi"><div class="ic">👀</div><div class="l">Visitas (30 dias)</div><div class="v">' + num(t.visitas) + '</div><div class="d">' + num(t.anuncios) + ' anúncios ativos</div></div>' +
+    '<div class="kpi"><div class="ic">🎯</div><div class="l">Conversão</div><div class="v">' + pct(t.conversao) + '</div><div class="d">' + (t.conversao == null ? '—' : t.conversao >= 3 ? 'boa (acima de 3%)' : t.conversao >= 1 ? 'média (1% a 3%)' : 'baixa (abaixo de 1%)') + '</div></div></div>' +
+    '<div class="card" style="margin-top:14px"><h2>' + logo('mercadolivre') + ' ' + esc(r.vendedor.apelido || '') + ' <span class="tag">reputação ' + esc(r.vendedor.reputacao || '—') + (r.vendedor.medalha ? ' · ' + esc(r.vendedor.medalha) : '') + ' · <a href="#" id="ml-sair">desconectar</a></span></h2>' +
+    '<div class="tabela-wrap"><table><thead><tr><th></th><th>Anúncio</th><th class="num">Preço</th><th class="num">Estoque</th><th class="num">Visitas</th><th class="num">Vendas</th><th class="num">Conversão</th><th class="num">Vendidos (total)</th><th>Diagnóstico</th></tr></thead><tbody>' +
+    r.itens.map(x => '<tr><td>' + (x.foto ? '<img class="thumb" src="' + esc(x.foto) + '" alt="">' : '') + '</td><td><a href="' + esc(x.link) + '" target="_blank" rel="noopener">' + esc(x.titulo) + '</a><div class="small muted">' + esc(x.tipo === 'gold_pro' ? 'Premium' : x.tipo === 'gold_special' ? 'Clássico' : x.tipo || '') + '</div></td><td class="num">' + brl(x.preco) + '</td><td class="num">' + num(x.estoque) + '</td><td class="num">' + num(x.visitas30) + '</td><td class="num">' + num(x.vendas30) + '</td><td class="num">' + pct(x.conversao) + '</td><td class="num">' + num(x.vendidosTotal) + '</td><td class="small">' + diagnostico(x) + ' <button type="button" class="link" data-pesquisar-titulo="' + esc(x.titulo) + '">🔎 comparar</button></td></tr>').join('') +
+    '</tbody></table></div><p class="aviso">Diagnóstico: poucas visitas = problema de título, preço ou anúncio pago; muitas visitas e poucas vendas = problema de preço, fotos, frete ou avaliações.</p></div>';
+  $('#ml-sair').onclick = async e => { e.preventDefault(); if (!confirm('Desconectar a conta do Mercado Livre?')) return; await api('/api/ml-conta', { method: 'POST', body: JSON.stringify({ acao: 'desconectar' }) }); pintarLoja(); };
+  $$('[data-pesquisar-titulo]').forEach(b => b.onclick = () => { const t2 = b.dataset.pesquisarTitulo.toLowerCase().split(/\s+/).slice(0, 6).join(' '); $('#q').value = t2; pesquisar(t2); });
+}
+function diagnostico(x) {
+  if (!x.estoque) return '⚠️ sem estoque';
+  if (x.visitas30 == null) return '';
+  if (x.visitas30 < 50) return '👀 poucas visitas: melhore título e fotos, ou anúncio pago';
+  if (x.conversao != null && x.conversao < 1) return '🛒 visitam e não compram: preço, frete ou avaliações';
+  if (x.conversao >= 3) return '🔥 convertendo bem: aumente a exposição (Ads, Full, kit)';
+  return '✔ ok';
+}
+
+// ───────────────────────── 📅 CALENDÁRIO ─────────────────────────
+function pintarCalendario() {
+  const box = $('#aba-calendario'), datas = Calendario.proximas(new Date(), 10);
+  const custos = cfg().custos || {}, metas = Object.values(custos).map(c => c.meta).filter(Boolean);
+  const unidadesMes = Number(ls.get('radar_unid_mes', 0)) || 0;
+  box.innerHTML = '<h1 class="titulo-aba">Calendário de vendas</h1><p class="sub-aba">As próximas datas que movem o varejo online e quando começar a produzir (30 dias antes).</p>' +
+    '<div class="card" style="margin-top:14px"><label class="small muted" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">Quantas unidades você vende por mês hoje (somando os canais)? <input type="number" id="cal-unid" min="0" step="10" value="' + (unidadesMes || '') + '" style="width:110px"></label>' +
+    '<div class="tabela-wrap" style="margin-top:10px"><table><thead><tr><th>Data</th><th>Evento</th><th class="num">Faltam</th><th class="num">Vendas sobem</th><th>Produzir até</th><th class="num">Unidades a mais</th><th>Dica</th></tr></thead><tbody id="cal-corpo"></tbody></table></div>' +
+    '<p class="aviso">"Vendas sobem" é uma referência de mercado; ajuste com o seu histórico (a aba 🛒 Minha loja mostra as suas vendas reais).' + (metas.length ? '' : '') + '</p></div>';
+  const desenhar = () => {
+    const u = Number($('#cal-unid').value) || 0; ls.set('radar_unid_mes', u);
+    $('#cal-corpo').innerHTML = datas.map(x => '<tr><td class="num">' + new Date(x.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) + '</td><td><b>' + esc(x.nome) + '</b></td><td class="num">' + x.dias + ' dias</td><td class="num">' + Math.round((x.fator - 1) * 100) + '%</td><td>' + (x.atrasado ? '<span class="var-neg">já devia ter começado</span>' : new Date(x.produzirAte + 'T12:00:00').toLocaleDateString('pt-BR')) + '</td><td class="num"><b>' + (u ? '+' + num(Calendario.extra(u, x.fator)) : '—') + '</b></td><td class="small">' + esc(x.dica) + '</td></tr>').join('');
+  };
+  $('#cal-unid').oninput = desenhar; desenhar();
+}
+
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
-if (senha()) carregar();
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas'].includes(aba0)) irPara(aba0); }
 })();

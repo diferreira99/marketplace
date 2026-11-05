@@ -36,15 +36,22 @@ process.env.PAINEL_SENHA = 'segredo-teste';
 test('margem: Mercado Livre abaixo de R$ 79 paga taxa fixa, acima paga frete', () => {
   const t = TAXAS_PADRAO.mercadolivre;
   const a = calcularCanal(50, 10, 2, 6, t);
-  assert.strictEqual(a.comissao, 6); assert.strictEqual(a.fixo, 6.75); assert.strictEqual(a.frete, 0);
-  assert.strictEqual(a.imposto, 3); assert.strictEqual(a.lucro, 50 - 6 - 6.75 - 3 - 12);
+  assert.strictEqual(a.comissao, 6); assert.strictEqual(a.fixo, 6.25); assert.strictEqual(a.frete, 0);
+  assert.strictEqual(a.imposto, 3); assert.strictEqual(a.lucro, 50 - 6 - 6.25 - 3 - 12);
+  // abaixo de R$ 19 a taxa fixa é no máximo metade do preço
+  assert.strictEqual(calcularCanal(10, 1, 0, 0, t).fixo, 5);
   const b = calcularCanal(100, 10, 2, 6, t);
   assert.strictEqual(b.fixo, 0); assert.strictEqual(b.frete, 22);
 });
 
-test('margem: Shopee respeita o teto da comissão', () => {
-  const c = calcularCanal(1000, 100, 0, 0, TAXAS_PADRAO.shopee);
-  assert.strictEqual(c.comissao, 100); assert.strictEqual(c.fixo, 4);
+test('margem: Shopee cobra por faixa de preço (2026)', () => {
+  const t = TAXAS_PADRAO.shopee;
+  assert.deepStrictEqual([calcularCanal(50, 0, 0, 0, t).comissao, calcularCanal(50, 0, 0, 0, t).fixo], [10, 4]);
+  assert.deepStrictEqual([calcularCanal(90, 0, 0, 0, t).comissao, calcularCanal(90, 0, 0, 0, t).fixo], [12.6, 16]);
+  assert.deepStrictEqual([calcularCanal(150, 0, 0, 0, t).comissao, calcularCanal(150, 0, 0, 0, t).fixo], [21, 20]);
+  assert.deepStrictEqual([calcularCanal(1000, 0, 0, 0, t).comissao, calcularCanal(1000, 0, 0, 0, t).fixo], [140, 26]);
+  // Amazon: mínimo de R$ 1
+  assert.strictEqual(calcularCanal(5, 0, 0, 0, TAXAS_PADRAO.amazon).comissao, 1);
 });
 
 test('margem: preço mínimo realmente entrega a margem alvo', () => {
@@ -65,7 +72,7 @@ test('config: taxas, custo por produto e vigiadas ficam na nuvem', async () => {
   let r = resFalsa();
   await config({ method: 'POST', headers: H, body: { acao: 'taxas', imposto: 8, taxas: { shopee: { comissao: 22, fixoAbaixo: 4, limiteFixo: 1e9, freteAcima: 0, tetoComissao: 100 } } } }, r, { armazem: arm });
   assert.strictEqual(r.code, 200); assert.strictEqual(r.body.imposto, 8); assert.strictEqual(r.body.taxas.shopee.comissao, 22);
-  assert.strictEqual(r.body.taxas.amazon.comissao, 15);
+  assert.strictEqual(r.body.taxas.amazon.comissao, 12);
   r = resFalsa();
   await config({ method: 'POST', headers: H, body: { acao: 'custo', termo: 'Fita de Borda', custo: 4.5, embalagem: 0.8 } }, r, { armazem: arm });
   assert.strictEqual(r.body.custos['fita-de-borda'].custo, 4.5); assert.strictEqual(r.body.custos['fita-de-borda'].embalagem, 0.8);

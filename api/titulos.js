@@ -105,7 +105,9 @@ async function handler(req, res, deps = {}) {
   let out = null;
   if (chave) { try { out = await comIA(d, detalhes, chave, deps.Anthropic); } catch (e) { console.warn('[anuncio] IA falhou:', e && e.message); } }
   if (!out) out = porRegra(d, detalhes);
-  return res.status(200).json({ termo, limites: LIMITES, nomes: NOMES, ...out });
+  const resposta = { termo, limites: LIMITES, nomes: NOMES, ...out, geradoEm: new Date().toISOString() };
+  try { await arm.mudarArquivo('anuncios/' + armazem.slug(termo) + '.json', () => resposta); } catch (e) { /* guardar é extra */ }
+  return res.status(200).json(resposta);
 }
 
 module.exports = handler;

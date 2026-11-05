@@ -1,0 +1,63 @@
+// POST /api/avaliacoes { termo } -> o que os compradores reclamam nos anúncios do Mercado Livre
+// (os da pesquisa e os concorrentes acompanhados). Com IA: resumo e melhorias; sem IA: temas por regra.
+'use strict';
+const { z } = require('zod');
+const { exigirSenha } = require('../lib/acesso');
+const armazem = require('../lib/armazem');
+const { codigosML, buscarReviews, temasPorRegra } = require('../lib/avaliacoes');
+const mlconta = require('../lib/mlconta');
+
+const Resumo = z.object({
+  reclamacoes: z.array(z.object({ tema: z.string(), quanto: z.string(), exemplo: z.string() })),
+  elogios: z.array(z.string()),
+  melhoriasProduto: z.array(z.string()),
+  melhoriasAnuncio: z.array(z.string()),
+});
+
+async function comIA(textos, termo, chave, Cliente) {
+  const Anthropic = Cliente || require('@anthropic-ai/sdk').default;
+  const { betaZodOutputFormat } = require('@anthropic-ai/sdk/helpers/beta/zod');
+  const client = new Anthropic({ apiKey: chave });
+  const resp = await client.beta.messages.parse({
+    model: 'claude-opus-5-5', max_tokens: 4000, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+    output_config: { effort: 'low', format: betaZodOutputFormat(Resumo) },
+    system: 'Você analisa avaliações de compradores para um fabricante brasileiro. Seja concreto e use só o que está nas avaliações. Português do Brasil.',
+    messages: [{ role: 'user', content: `Produto: ${termo}\n\nAvaliações de anúncios concorrentes no Mercado Livre (nota de 1 a 5):\n${textos.join('\n').slice(0, 30000)}\n\nResuma: as reclamações mais frequentes (tema, quanto aparece e um exemplo curto), o que mais elogiam, o que o fabricante deve melhorar no produto e o que deve deixar claro no anúncio.` }],
+  });
+  if (resp.stop_reason === 'refusal' || !resp.parsed_output) return null;
+  return resp.parsed_output;
+}
+
+async function handler(req, res, deps = {}) {
+  const arm = deps.armazem || armazem.padrao();
+  const fetcher = deps.fetch || fetch;
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'POST') return res.status(405).json({ erro: 'use POST' });
+  if (!exigirSenha(req, res)) return;
+  let b = req.body; if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } } b = b || {};
+  const termo = String(b.termo || '').trim().slice(0, 120);
+  const d = await arm.ler(termo);
+  if (!d) return res.status(404).json({ erro: 'Pesquise a palavra primeiro.' });
+  const salvo = await arm.lerArquivo('avaliacoes/' + armazem.slug(termo) + '.json');
+  if (salvo && !b.atualizar && Date.now() - new Date(salvo.em) < 7 * 864e5) return res.status(200).json({ ...salvo, doCache: true });
+
+  const links = Object.values(d.marketplaces || {}).flatMap(m => (m.itens || []).map(i => i.link));
+  const conc = ((await arm.lerArquivo('concorrentes.json')) || []).map(c => c.link);
+  const ids = codigosML(links.concat(conc));
+  if (!ids.length) return res.status(200).json({ termo, em: new Date().toISOString(), anuncios: 0, fonte: 'nenhum', motivo: 'Nenhum anúncio do Mercado Livre com código (MLB) na pesquisa nem nos concorrentes.' });
+  let tk = null;
+  try { const c = await mlconta.token(arm, fetcher); tk = c && !c.expirado ? c.access_token : null; } catch (e) { tk = null; }
+  if (!tk && process.env.ML_ACCESS_TOKEN) tk = process.env.ML_ACCESS_TOKEN;
+  const itens = await buscarReviews(ids, fetcher, tk);
+  if (!itens.length) return res.status(200).json({ termo, em: new Date().toISOString(), anuncios: 0, fonte: 'nenhum', motivo: 'O Mercado Livre não liberou as avaliações agora' + (tk ? '.' : ' (conectar a sua conta do ML na aba 🛒 Minha loja costuma resolver).') });
+  const regra = temasPorRegra(itens);
+  let ia = null;
+  const textos = itens.flatMap(i => i.reviews.filter(r => r.texto || r.titulo).map(r => `[${r.nota}★] ${r.titulo} ${r.texto}`.trim()));
+  if (process.env.ANTHROPIC_API_KEY && textos.length >= 5) { try { ia = await comIA(textos, termo, process.env.ANTHROPIC_API_KEY, deps.Anthropic); } catch (e) { ia = null; } }
+  const out = { termo, em: new Date().toISOString(), anuncios: itens.length, media: itens.map(i => i.media).filter(x => x != null),
+    totalAvaliacoes: itens.reduce((s, i) => s + (i.total || 0), 0), lidas: textos.length, ...regra, ia, fonte: ia ? 'ia' : 'regra' };
+  try { await arm.mudarArquivo('avaliacoes/' + armazem.slug(termo) + '.json', () => out); } catch (e) { /* cache é extra */ }
+  return res.status(200).json(out);
+}
+
+module.exports = handler;
