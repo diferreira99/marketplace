@@ -148,7 +148,7 @@ function irPara(aba) {
   const mais = $('#nav-mais'); if (mais) mais.classList.toggle('ativo', !!$('#nav button[data-aba="' + aba + '"]:not([data-mob])'));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, compradores: pintarCompradores, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
@@ -327,6 +327,8 @@ function pintarResultado(d, salvo) {
     comFoto.map(i => '<a href="' + esc(i.link) + '" target="_blank" rel="noopener"><img loading="lazy" src="' + esc(i.imagem) + '" alt="' + esc(i.titulo) + '"><span><b>' + brl(i.preco) + '</b> · ' + esc(i.loja) + '<br>' + esc(String(i.titulo).slice(0, 50)) + '</span></a>').join('') + '</div></div>' : '') +
   '<div class="card" style="margin-top:14px" id="card-aval"></div>' +
   '<div class="card" style="margin-top:14px" id="card-fotos"></div>' +
+  '<div class="card" style="margin-top:14px" id="card-perguntas"></div>' +
+  '<div class="card" style="margin-top:14px" id="card-videos"></div>' +
   '<div class="card" style="margin-top:14px" id="card-serie"></div>' +
   '<div class="grid g2">' +
     '<div class="card"><h2>🔎 SEO · Top 10 do Google <span class="tag">' + s.marketplacesNoTop + ' marketplaces no top</span></h2>' +
@@ -399,7 +401,7 @@ function secaoDoBloco(el) {
   if (id === 'card-onde' || id === 'card-plano') return 'resumo';
   if (id === 'card-serie') return 'resumo';
   if (id === 'card-margem' || id === 'card-preco') return 'lucro';
-  if (id === 'card-titulos' || id === 'card-fotos') return 'anuncio';
+  if (id === 'card-titulos' || id === 'card-fotos' || id === 'card-perguntas' || id === 'card-videos') return 'anuncio';
   if (id === 'card-palavras' || el.querySelector('#bt-ir-palavras')) return 'palavras';
   return 'concorrencia';   // marketplaces, Shopping, distribuição, galeria, reclamações, evolução
 }
@@ -890,6 +892,55 @@ function pintarSimulador() {
   desenhar();
 }
 
+// ───────────────────────── 🏪 COMPRADORES EM VOLUME ─────────────────────────
+let compradoresRes = null;
+async function pintarCompradores() {
+  const box = $('#aba-compradores'), st = ls.get('radar_compr', { cidade: '', tipos: ['vidraçaria', 'marcenaria', 'loja de material de construção', 'móveis planejados'] });
+  const OPCOES = ['vidraçaria', 'marcenaria', 'loja de material de construção', 'móveis planejados', 'serralheria', 'loja de decoração', 'gesseiro', 'vidros e espelhos'];
+  box.innerHTML = '<h1 class="titulo-aba">Compradores em volume</h1><p class="sub-aba">Empresas que usam o seu produto todo dia e compram caixa fechada, achadas no Google Maps. Você escolhe a cidade e os tipos; o contato é feito por você (WhatsApp, telefone ou visita).</p>' +
+    '<div class="card" style="margin-top:14px"><div class="compr-form"><label>Cidade<input id="compr-cidade" placeholder="ex.: Campinas SP" value="' + esc(st.cidade) + '"></label>' +
+    '<label>Páginas por tipo<select id="compr-pag"><option value="1">1 (até 20 empresas)</option><option value="2">2 (até 40)</option></select></label></div>' +
+    '<div class="small muted" style="margin:10px 0 6px">Tipos de empresa</div><div class="chips">' + OPCOES.map(t => '<label class="chip compr-tipo"><input type="checkbox" value="' + esc(t) + '"' + (st.tipos.includes(t) ? ' checked' : '') + '> ' + esc(t) + '</label>').join('') + '</div>' +
+    '<div class="pal-acoes" style="margin-top:12px"><button type="button" class="pri" id="compr-ir">Buscar compradores</button><span class="small muted" id="compr-custo"></span></div></div>' +
+    '<div id="compr-res" style="margin-top:14px"></div>';
+  const custo = () => { const n = $$('.compr-tipo input:checked').length * Number($('#compr-pag').value); $('#compr-custo').textContent = n ? 'Gasta cerca de ' + n + ' crédito' + (n > 1 ? 's' : '') + ' do Serper' : 'Marque pelo menos um tipo'; $('#compr-ir').disabled = !n; };
+  $$('.compr-tipo input').forEach(i => i.onchange = custo); $('#compr-pag').onchange = custo; custo();
+  $('#compr-ir').onclick = async () => {
+    const cidade = $('#compr-cidade').value.trim(), tipos = $$('.compr-tipo input:checked').map(i => i.value);
+    if (cidade.length < 3) { $('#compr-cidade').focus(); return avisoRapido('Informe a cidade.'); }
+    ls.set('radar_compr', { cidade, tipos });
+    $('#compr-ir').disabled = true; $('#compr-res').innerHTML = '<div class="card"><div class="vazio"><span class="carregando"></span>Procurando no Google Maps…</div></div>';
+    try { compradoresRes = await api('/api/concorrentes', { method: 'POST', body: JSON.stringify({ acao: 'compradores', cidade, tipos, paginas: Number($('#compr-pag').value) }) }); desenharCompradores(); }
+    catch (e) { $('#compr-res').innerHTML = '<div class="card"><div class="vazio">' + esc(e.message) + '</div></div>'; }
+    $('#compr-ir').disabled = false;
+  };
+  if (!compradoresRes) { try { const u = await api('/api/concorrentes?compradores=1'); if (u && u.itens && u.itens.length) compradoresRes = u; } catch (e) { /* sem busca anterior */ } }
+  if (compradoresRes && abaAtual === 'compradores') desenharCompradores();
+}
+function desenharCompradores() {
+  const r = compradoresRes, box = $('#compr-res'); if (!box || !r) return;
+  if (!r.itens.length) { box.innerHTML = '<div class="card"><div class="vazio">Nenhuma empresa encontrada em ' + esc(r.cidade) + '. Tente a cidade com o estado (ex.: "Campinas SP") ou outros tipos.</div></div>'; return; }
+  const comZap = r.itens.filter(i => i.whatsapp).length, porTipo = {};
+  r.itens.forEach(i => { porTipo[i.tipo] = (porTipo[i.tipo] || 0) + 1; });
+  box.innerHTML = '<div class="card"><h2>🏪 ' + r.itens.length + ' empresas em ' + esc(r.cidade) + ' <span class="tag">' + (r.em ? 'buscado em ' + dataBR(r.em) + ' · ' : '') + '<a href="#" id="compr-csv">baixar planilha (CSV)</a></span></h2>' +
+    '<div class="mini-kpis" style="margin-bottom:12px"><div><div class="v">' + r.itens.length + '</div><div class="l">Empresas</div></div><div><div class="v">' + comZap + '</div><div class="l">Com celular (WhatsApp)</div></div>' +
+      Object.entries(porTipo).slice(0, 2).map(([t, n]) => '<div><div class="v">' + n + '</div><div class="l">' + esc(t) + '</div></div>').join('') + '</div>' +
+    '<p class="small muted">Ordenado por número de avaliações no Google (empresas maiores primeiro). Dica de abordagem: ofereça amostra e preço de caixa fechada; mostre o teste de força.</p>' +
+    '<div class="tabela-wrap"><table><thead><tr><th>Empresa</th><th>Tipo</th><th class="num">Nota</th><th>Contato</th><th>Endereço</th></tr></thead><tbody>' +
+    r.itens.map(i => '<tr><td><b>' + esc(i.nome) + '</b>' + (i.categoria ? '<div class="small muted">' + esc(i.categoria) + '</div>' : '') + '</td><td class="small">' + esc(i.tipo) + '</td>' +
+      '<td class="num">' + (i.nota != null ? '⭐ ' + String(i.nota).replace('.', ',') + '<div class="small muted">' + num(i.avaliacoes || 0) + '</div>' : '—') + '</td>' +
+      '<td class="compr-contato">' + (i.whatsapp ? '<a class="sec-link" href="' + esc(i.whatsapp) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + (i.telefone ? '<a href="tel:' + esc(i.telefone.replace(/[^\d+]/g, '')) + '">' + esc(i.telefone) + '</a>' : '') + (i.site ? '<a href="' + esc(i.site) + '" target="_blank" rel="noopener">site</a>' : '') + (i.maps ? '<a href="' + esc(i.maps) + '" target="_blank" rel="noopener">mapa</a>' : '') + '</td>' +
+      '<td class="small">' + esc(i.endereco) + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<p class="aviso">A planilha (CSV) abre no Excel e no Google Planilhas. O contato é sempre manual: nada é enviado sozinho.</p></div>';
+  $('#compr-csv').onclick = e => {
+    e.preventDefault();
+    const cab = ['nome', 'tipo', 'categoria', 'telefone', 'whatsapp', 'endereco', 'site', 'nota', 'avaliacoes', 'maps'];
+    const q = v => { const x = String(v == null ? '' : v); return /[";\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+    const txt = '﻿' + [cab.join(';')].concat(r.itens.map(i => cab.map(k => q(i[k])).join(';'))).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' })); a.download = 'compradores-' + slug(r.cidade) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+}
+
 // ───────────────────────── ⚙️ TAXAS ─────────────────────────
 function pintarTaxas() {
   const c = cfg(), box = $('#aba-taxas');
@@ -969,9 +1020,20 @@ function pintarPrecoIdeal(d, margens) {
 }
 
 // ───────────────────────── 🗣️ RECLAMAÇÕES ─────────────────────────
+function blocoOutras(o) {
+  if (!o) return '';
+  const cab = '<div class="ra-fonte" style="margin-top:16px">' + logo('shopee') + logo('amazon') + ' <b>Shopee e Amazon</b> <span class="small muted">comentários que o Google mostra</span> <button type="button" class="ajuda" data-txt="Trechos de avaliações e páginas de produto da Shopee e da Amazon que aparecem no Google. São menos completos que as avaliações do Mercado Livre, mas mostram se as mesmas reclamações se repetem nos outros canais.">?</button></div>';
+  if (o.erro) return cab + '<div class="vazio small">' + esc(o.erro) + '</div>';
+  if (!o.itens.length) return cab + '<div class="vazio small">O Google não mostrou comentários desse produto na Shopee ou na Amazon.</div>';
+  const neg = o.itens.filter(i => i.negativo), lista = (neg.length ? neg : o.itens).slice(0, 6);
+  return cab + (o.temas.length ? '<div class="chips" style="margin:6px 0">' + o.temas.slice(0, 5).map(t => '<span class="chip">' + esc(t.tema) + ' · ' + t.vezes + '</span>').join('') + '</div>' : '') +
+    '<p class="small muted" style="margin:4px 0">' + (neg.length ? neg.length + ' de ' + o.itens.length + ' trechos são reclamações.' : 'Nenhum trecho negativo entre os ' + o.itens.length + ' encontrados.') + '</p>' +
+    '<ul class="ra-lista">' + lista.map(i => '<li>' + logo(i.canal) + ' <a href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.titulo || 'ver no ' + CANAIS[i.canal].nome) + '</a>' + (i.nota != null ? ' <span class="small">⭐ ' + String(i.nota).replace('.', ',') + '</span>' : '') + '<div class="small">' + esc(i.trecho) + '</div></li>').join('') + '</ul>';
+}
 async function pintarAvaliacoes(d, atualizar) {
   const box = $('#card-aval'); if (!box) return;
-  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">Mercado Livre + Reclame Aqui</span></h2><div class="vazio"><span class="carregando"></span>Lendo avaliações e reclamações…</div>';
+  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">Mercado Livre, Reclame Aqui, Shopee e Amazon</span></h2><div class="vazio"><span class="carregando"></span>Lendo avaliações e reclamações…</div>';
+  ['#card-perguntas', '#card-videos'].forEach(id => { const c = $(id); if (c) c.innerHTML = '<h2>' + (id === '#card-perguntas' ? '❓ O que os compradores perguntam' : '🎬 Vídeos sobre o produto') + '</h2><div class="vazio"><span class="carregando"></span>buscando…</div>'; });
   let r;
   try { r = await api('/api/avaliacoes', { method: 'POST', body: JSON.stringify({ termo: d.termo, atualizar: !!atualizar }) }); }
   catch (e) { box.innerHTML = '<h2>🗣️ O que os compradores reclamam</h2><div class="vazio">' + esc(e.message) + '</div>'; return; }
@@ -998,9 +1060,36 @@ async function pintarAvaliacoes(d, atualizar) {
     '<div class="grid g2" style="margin-top:' + (ia ? '14px' : '0') + '">' +
       '<div><div class="ra-fonte">' + logo('mercadolivre') + ' <b>Avaliações no Mercado Livre</b></div>' + blocoML + '</div>' +
       '<div><div class="ra-fonte">📣 <b>Reclame Aqui</b> <button type="button" class="ajuda" data-txt="Reclamações sobre esse tipo de produto no Reclame Aqui, achadas pelo Google (título e trecho que o Google mostra). Mostram o que dá errado com os concorrentes: é o que você pode fazer melhor e deixar claro no anúncio. Gasta 1 a 2 créditos do Serper e fica guardado por 7 dias.">?</button></div>' + blocoRA + '</div>' +
-    '</div>' +
-    (ia ? '' : '<p class="aviso">Com a chave da IA, o painel junta as duas fontes num resumo com as melhorias para o produto e para o anúncio.</p>');
+    '</div>' + blocoOutras(r.outras) +
+    (ia ? '' : '<p class="aviso">Com a chave da IA, o painel junta todas as fontes num resumo com as melhorias para o produto e para o anúncio.</p>');
   const at = $('#aval-atualizar'); if (at) at.onclick = e => { e.preventDefault(); pintarAvaliacoes(d, true); };
+  pintarPerguntas(r, d); pintarVideos(r);
+}
+// ❓ Dúvidas dos compradores: o que precisa estar no título, nas fotos e na descrição
+function pintarPerguntas(r, d) {
+  const box = $('#card-perguntas'); if (!box) return;
+  const p = r.perguntas || { itens: [], temas: [], google: [] };
+  const ml = p.itens || [], gg = p.google || [];
+  if (!ml.length && !gg.length) { box.innerHTML = '<h2>❓ O que os compradores perguntam</h2><div class="vazio">' + (r.motivoML && /token|conta/.test(r.motivoML) ? 'O Mercado Livre não liberou as perguntas. Conectar a sua conta na aba 🛒 Minha loja costuma resolver.' : 'Nenhuma pergunta encontrada nos anúncios concorrentes.') + '</div>'; return; }
+  box.innerHTML = '<h2>❓ O que os compradores perguntam <span class="tag">' + ml.length + ' perguntas nos anúncios do Mercado Livre' + (gg.length ? ' · ' + gg.length + ' no Google' : '') + '</span></h2>' +
+    (p.temas && p.temas.length ? '<p class="small muted" style="margin-top:0">As dúvidas que mais aparecem. Responda cada uma já no anúncio (título, fotos e descrição): menos perguntas, mais vendas.</p>' +
+      barrasH(p.temas.map(t => ({ rotulo: t.tema, valor: t.vezes, cor: 'var(--brand)', dica: esc(t.tema) + ': ' + t.vezes + '<br>' + t.exemplos.map(e => '“' + esc(e) + '”').join('<br>') })), {}) : '') +
+    '<div class="grid g2">' +
+      (ml.length ? '<div><b class="small">' + logo('mercadolivre') + ' Perguntas nos anúncios concorrentes</b><ul class="ra-lista">' + ml.slice(0, 8).map(q => '<li><div>“' + esc(q.pergunta) + '”</div>' + (q.resposta ? '<div class="small muted">Resposta do vendedor: ' + esc(q.resposta) + '</div>' : '<div class="small var-neg">sem resposta</div>') + '</li>').join('') + '</ul></div>' : '') +
+      (gg.length ? '<div><b class="small">🔎 As pessoas também perguntam (Google)</b><ul class="ra-lista">' + gg.map(q => '<li>' + esc(q) + '</li>').join('') + '</ul></div>' : '') +
+    '</div>' +
+    (ml.some(q => !q.resposta) ? '<p class="aviso">Perguntas sem resposta nos concorrentes são venda perdida para eles: responda essas dúvidas no seu anúncio.</p>' : '');
+}
+// 🎬 Vídeos do YouTube: o que mostrar no seu vídeo e nas fotos
+function pintarVideos(r) {
+  const box = $('#card-videos'); if (!box) return;
+  const v = r.videos;
+  if (!v) { box.innerHTML = '<h2>🎬 Vídeos sobre o produto</h2><div class="vazio">Falta a chave do Serper para buscar vídeos.</div>'; return; }
+  if (v.erro || !v.itens.length) { box.innerHTML = '<h2>🎬 Vídeos sobre o produto</h2><div class="vazio">' + esc(v.erro || 'Nenhum vídeo no YouTube sobre esse produto. Oportunidade: quem fizer o primeiro vídeo aparece sozinho.') + '</div>'; return; }
+  box.innerHTML = '<h2>🎬 Vídeos sobre o produto <span class="tag">YouTube · ' + v.itens.length + ' vídeos</span></h2>' +
+    (v.angulos.length ? '<p class="small" style="margin-top:0">O que os vídeos mostram: ' + v.angulos.map(a => '<b>' + esc(a.nome) + '</b> (' + a.vezes + ')').join(' · ') + '. Use isso de roteiro para o seu vídeo e para as fotos do anúncio.</p>' : '') +
+    '<div class="videos">' + v.itens.map(x => '<a class="video" href="' + esc(x.link) + '" target="_blank" rel="noopener">' + (x.imagem ? '<img loading="lazy" src="' + esc(x.imagem) + '" alt="">' : '<div class="video-sem">▶</div>') +
+      '<div class="video-t">' + esc(x.titulo) + '</div><div class="small muted">' + esc([x.canal, x.visualizacoes ? num(x.visualizacoes) + ' visualizações' : '', x.duracao, x.data].filter(Boolean).join(' · ')) + '</div></a>').join('') + '</div>';
 }
 
 // ───────────────────────── 📸 FOTOS ─────────────────────────
@@ -1236,6 +1325,9 @@ const AJUDA = [
   ['mais vendido', 'Quantas vendas tem o anúncio que mais vende com essa palavra-chave.'],
   ['usar no', 'Onde colocar a palavra no seu anúncio: título (as mais fortes), descrição e ficha técnica (as médias).'],
   ['demanda', 'O que as pessoas digitam no Google, na busca do Mercado Livre e da Amazon. Use essas variações nos títulos e na descrição: é assim que o cliente acha o anúncio.'],
+  ['o que os compradores perguntam', 'Perguntas que os compradores fazem nos anúncios dos concorrentes no Mercado Livre e as dúvidas que o Google mostra. Cada dúvida comum é algo para responder já no título, nas fotos ou na descrição do seu anúncio.'],
+  ['vídeos sobre o produto', 'Os vídeos do YouTube sobre esse produto: o que mostram (teste de força, como aplicar, review). Serve de roteiro para o seu vídeo e as suas fotos. Pouco vídeo = espaço livre para você.'],
+  ['compradores em volume', 'Empresas que usam o produto no dia a dia, achadas no Google Maps: vidraçarias, marcenarias, lojas de material. Compram caixa fechada. Os dados são públicos do Maps e o contato é sempre feito por você.'],
   ['o que os compradores reclamam', 'Lê as avaliações dos anúncios concorrentes no Mercado Livre e agrupa as reclamações por tema. O que eles erram é o que você pode fazer melhor no produto e deixar claro no anúncio.'],
   ['fotos do anúncio', 'Regras de foto de cada canal e pedidos prontos para gerar imagens com IA (capa, uso real, medidas, prova de força).'],
   // painel
@@ -1475,5 +1567,5 @@ document.addEventListener('click', async e => {
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
 function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel'].includes(aba0)) irPara(aba0); else primeiraVez(); }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel', 'compradores'].includes(aba0)) irPara(aba0); else primeiraVez(); }
 })();

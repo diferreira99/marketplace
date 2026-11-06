@@ -3,7 +3,8 @@
     "api/monitorar.js": { "maxDuration": 60 },
     "api/titulos.js": { "maxDuration": 60 },
     "api/pesquisa.js": { "maxDuration": 30 },
-    "api/concorrentes.js": { "maxDuration": 30 }
+    "api/concorrentes.js": { "maxDuration": 60 },
+    "api/avaliacoes.js": { "maxDuration": 30 }
   },
   "headers": [
     { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }, { "key": "Service-Worker-Allowed", "value": "/" }] },
