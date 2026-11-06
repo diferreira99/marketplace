@@ -682,7 +682,7 @@ async function pintarSerie(termo) {
   const box = $('#card-serie'); if (!box) return;
   box.classList.remove('hidden');
   box.innerHTML = '<h2>📉 Preço e procura no tempo</h2><div class="grid g2" style="margin-top:0"><div id="tempo-preco"><div class="vazio"><span class="carregando"></span>carregando…</div></div><div id="tempo-procura"><div class="vazio"><span class="carregando"></span>consultando o Google Trends…</div></div></div>';
-  const [p, tr] = await Promise.all([buscarSerie(termo), api('/api/tendencias?termo=' + encodeURIComponent(termo)).catch(e => ({ indisponivel: true, motivo: e.message }))]);
+  const [p, tr] = await Promise.all([buscarSerie(termo), api('/api/historico?tendencia=1&termo=' + encodeURIComponent(termo)).catch(e => ({ indisponivel: true, motivo: e.message }))]);
   if (!$('#card-serie') || !S.atual || slug(S.atual.termo) !== slug(termo)) return;
   const vig = vigiada(termo);
   // preço: faixa mínimo–máximo e o preço comum, a cada checagem

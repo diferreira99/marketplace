@@ -1,5 +1,6 @@
 // GET    /api/historico            -> lista das pesquisas (resumo), a mesma para todo mundo
 // GET    /api/historico?termo=...  -> pesquisa completa salva
+// GET    /api/historico?termo=...&tendencia=1 -> procura no Google Trends (lib/tendencias-rota)
 // DELETE /api/historico?termo=...  -> tira a pesquisa do histórico
 'use strict';
 const { exigirSenha } = require('../lib/acesso');
@@ -12,6 +13,7 @@ async function handler(req, res, deps = {}) {
   const termo = String((req.query && req.query.termo) || '').trim().slice(0, 120);
   if (req.method === 'GET') {
     if (!termo) return res.status(200).json({ nuvem: arm.ativo, itens: await arm.indice() });
+    if (req.query.tendencia) return require('../lib/tendencias-rota')(req, res, deps);
     if (req.query.serie) return res.status(200).json({ termo, pontos: await arm.serie(termo) });
     if (req.query.anuncio) { const a = await arm.lerArquivo('anuncios/' + armazem.slug(termo) + '.json'); return a ? res.status(200).json(a) : res.status(404).json({ erro: 'Sem anúncio gerado.' }); }
     const d = await arm.ler(termo);

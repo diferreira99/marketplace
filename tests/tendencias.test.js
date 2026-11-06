@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const T = require('../lib/tendencias');
-const api = require('../api/tendencias');
+const api = require('../api/historico');
 const { criar } = require('../lib/armazem');
 
 // 52 semanas: procura baixa no começo, alta nos últimos 3 meses e pico em novembro
@@ -47,11 +47,11 @@ const res = () => { const r = { code: 0, body: null }; r.setHeader = () => {}; r
 test('API: guarda por 7 dias e avisa quando o Google limita', async () => {
   process.env.PAINEL_SENHA = 'segredo-teste';
   const H = { 'x-senha': 'segredo-teste' }, arm = criar(blobFalso());
-  let r = res(); await api({ method: 'GET', headers: H, query: { termo: 'fita eva' } }, r, { armazem: arm, fetch: fetchFalso([]) });
+  let r = res(); await api({ method: 'GET', headers: H, query: { termo: 'fita eva', tendencia: '1' } }, r, { armazem: arm, fetch: fetchFalso([]) });
   assert.strictEqual(r.body.pontos.length, 52);
-  r = res(); await api({ method: 'GET', headers: H, query: { termo: 'fita eva' } }, r, { armazem: arm, fetch: async () => { throw new Error('não devia chamar'); } });
+  r = res(); await api({ method: 'GET', headers: H, query: { termo: 'fita eva', tendencia: '1' } }, r, { armazem: arm, fetch: async () => { throw new Error('não devia chamar'); } });
   assert.strictEqual(r.body.doCache, true);
   const limita = async () => ({ ok: false, status: 429, headers: { get: () => null }, text: async () => '' });
-  r = res(); await api({ method: 'GET', headers: H, query: { termo: 'outra palavra' } }, r, { armazem: arm, fetch: limita });
+  r = res(); await api({ method: 'GET', headers: H, query: { termo: 'outra palavra', tendencia: '1' } }, r, { armazem: arm, fetch: limita });
   assert.strictEqual(r.body.indisponivel, true); assert.match(r.body.motivo, /limitou/);
 });
