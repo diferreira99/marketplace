@@ -521,3 +521,23 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .bf-url select{flex:1;min-width:0}
 .bf-manual{margin-top:10px}
 @media (max-width:760px){.bf-fontes{grid-template-columns:1fr}}
+
+/* 🔥 anúncios mais hypados */
+.hype-passos{margin:6px 0 2px;padding-left:18px;display:grid;gap:4px;font-size:.88rem}
+.hype-filtros{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;margin:12px 0}
+.hype-filtros label{display:grid;gap:4px;font-size:.75rem;font-weight:700;color:var(--muted)}
+.hype-lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.hype-it{position:relative;padding:12px 52px 12px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card-2)}
+.hype-topo{display:flex;gap:10px;align-items:flex-start}
+.hype-n{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.9rem;background:conic-gradient(#f5a524 var(--h),var(--line) 0);position:relative}
+.hype-n::before{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--card-2)}
+.hype-n{isolation:isolate}.hype-n::before{z-index:-1}
+.hype-tit{min-width:0}.hype-tit a{font-weight:700;font-size:.9rem}
+.hype-meta{font-size:.76rem;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.hype-nums{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.84rem;margin:8px 0 0 52px}
+.hype-nums .preco{font-weight:800;color:#1f9d55}
+.hype-pontos{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 0 52px;align-items:center}
+.hp{font-size:.74rem;font-weight:700;padding:3px 8px;border-radius:99px}
+.hp.pos{background:rgba(31,157,85,.12);color:#1a7f47}
+.hp.neg{background:rgba(214,69,69,.12);color:#b83232}
+@media (max-width:640px){.hype-nums,.hype-pontos{margin-left:0}}

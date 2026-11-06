@@ -1,8 +1,8 @@
 // Service worker do Radar: guarda a "casca" do app para abrir rápido (e sem internet).
 // Os dados (/api) sempre vêm da rede: nunca ficam guardados aqui.
-const VERSAO = 'radar-v3';
+const VERSAO = 'radar-v4';
 const CASCA = ['/', '/index.html', '/app.js', '/estilo.css', '/manifest.webmanifest',
-  '/lib/margem.js', '/lib/frete.js', '/lib/precoideal.js', '/lib/calendario.js', '/lib/recomendacao.js', '/lib/palavras.js', '/lib/blackfriday.js',
+  '/lib/margem.js', '/lib/frete.js', '/lib/precoideal.js', '/lib/calendario.js', '/lib/recomendacao.js', '/lib/palavras.js', '/lib/blackfriday.js', '/lib/hype.js',
   '/icones/icone-192.png', '/icones/icone-512.png', '/icones/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

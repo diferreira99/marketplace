@@ -318,6 +318,7 @@ function pintarResultado(d, salvo) {
   '<div class="card" style="margin-top:14px" id="card-margem"></div>' +
   '<div class="card" style="margin-top:14px" id="card-preco"></div>' +
   '<div class="card" style="margin-top:14px" id="card-plano"></div>' +
+  '<div class="card" style="margin-top:14px" id="card-hype"></div>' +
   '<div class="grid g3">' + cardMp('mercadolivre', mp.mercadolivre) + cardMp('shopee', mp.shopee) + cardMp('amazon', mp.amazon) + '</div>' +
   '<div class="card" style="margin-top:14px" id="card-titulos"><h2>✍️ Anúncio pronto <span class="tag">títulos, descrição, destaques, ficha técnica e respostas</span></h2>' +
     '<label class="small muted" style="display:grid;gap:4px;margin-bottom:8px">Dados do seu produto (marca, material, medidas, cores, o que vem na caixa): a IA usa como verdade e não inventa<textarea id="an-detalhes" style="min-height:70px" placeholder="ex.: marca XYZ, PVC, 22 mm x 20 m, branca e preta, rolo com 1 unidade">' + esc(((cfg().custos || {})[slug(d.termo)] || {}).detalhes || '') + '</textarea></label>' +
@@ -358,6 +359,7 @@ function pintarResultado(d, salvo) {
   pintarAvaliacoes(d);
   pintarFotos(d);
   pintarPalavras(d);
+  pintarHype(d, null);
   $('#bt-ir-palavras').onclick = () => destacar('#card-palavras');
   organizarEmAbas();
 }
@@ -453,6 +455,48 @@ async function buscarNoHistorico(q) {
   box.innerHTML = '<div class="card hist-res"><h2>Resultado para “' + esc(q.trim()) + '” <span class="tag">' + pesq.length + ' pesquisas · ' + cmp.length + ' comparações</span></h2>' +
     (pesq.length ? tabelaPesquisas(pesq) : '') + (cmp.length ? '<div class="small muted" style="margin:12px 0 6px">Comparações de palavras-chave</div>' + linhasComparacoes(cmp) : '') +
     (!pesq.length && !cmp.length ? '<div class="vazio">Nada encontrado. Faça a pesquisa lá em cima.</div>' : '') + '</div>';
+}
+
+// 🔥 Anúncios mais hypados: filtro por estrelas, avaliações, vendas e canal + estratégia dos líderes
+function pintarHype(d, porAnuncio) {
+  const box = $('#card-hype'); if (!box || !window.Hype) return;
+  if (porAnuncio) box._rv = porAnuncio;
+  const lista = Hype.juntar(d, box._rv || null);
+  if (!lista.length) { box.innerHTML = '<h2>🔥 Anúncios mais hypados</h2><div class="vazio">Nenhum anúncio de produto nesta pesquisa.</div>'; return; }
+  const f = ls.get('radar_hype', { canal: 'todos', estrelas: 0, ordem: 'hype' });
+  const est = Hype.estrategia(lista, d.termo);
+  const NOMEC = { todos: 'Todos', mercadolivre: 'Mercado Livre', shopee: 'Shopee', amazon: 'Amazon', shopping: 'Google Shopping' };
+  const conta = k => k === 'todos' ? lista.length : lista.filter(a => a.canal === k).length;
+  box.innerHTML = '<h2>🔥 Anúncios mais hypados <span class="tag">' + lista.length + ' anúncios · vendas, avaliações e estrelas</span></h2>' +
+    (est ? '<div class="cli-resumo"><b>🎯 Estratégia a partir dos ' + est.top + ' mais hypados</b><ul class="hype-passos">' + est.passos.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+      (box._rv ? '' : '<div class="small muted">Os pontos positivos e negativos de cada anúncio chegam em instantes (lendo as avaliações)…</div>') + '</div>' : '') +
+    '<div class="hype-filtros">' +
+      '<div class="chips">' + Object.keys(NOMEC).filter(k => conta(k)).map(k => '<button type="button" class="chip' + (f.canal === k ? ' on' : '') + '" data-hc="' + k + '">' + (k !== 'todos' && k !== 'shopping' ? logo(k) + ' ' : '') + NOMEC[k] + ' · ' + conta(k) + '</button>').join('') + '</div>' +
+      '<label>Estrelas<select id="hype-est"><option value="0">qualquer</option><option value="4"' + (f.estrelas == 4 ? ' selected' : '') + '>4★ ou mais</option><option value="4.5"' + (f.estrelas == 4.5 ? ' selected' : '') + '>4,5★ ou mais</option><option value="4.8"' + (f.estrelas == 4.8 ? ' selected' : '') + '>4,8★ ou mais</option></select></label>' +
+      '<label>Ordenar por<select id="hype-ord">' + [['hype', '🔥 mais hypados'], ['avaliacoes', '💬 mais avaliações'], ['estrelas', '⭐ mais estrelas'], ['vendidos', '🛒 mais vendidos'], ['preco', '💲 menor preço']].map(([v, n]) => '<option value="' + v + '"' + (f.ordem === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' +
+    '</div><div id="hype-lista"></div>' +
+    '<p class="small muted">Hype de 0 a 100: junta vendas, número de avaliações e estrelas (o que o Google trouxer de cada anúncio; com menos sinais, a nota é um pouco mais conservadora). Pontos positivos e negativos vêm das avaliações dos anúncios do Mercado Livre; Shopee, Amazon e Shopping mostram estrelas e quantidade quando o Google traz.</p>';
+  const desenhar = () => {
+    const l = Hype.filtrar(lista, f);
+    $('#hype-lista').innerHTML = !l.length ? '<div class="vazio">Nenhum anúncio com esse filtro.</div>' : '<ol class="hype-lista">' + l.slice(0, 25).map(a => {
+      const rv = a.reviews, h = a.hype;
+      return '<li class="hype-it">' + (a.canal !== 'shopping' ? botaoEstrela(a.link, a.titulo) : '') +
+        '<div class="hype-topo"><span class="hype-n" style="--h:' + h + '%">' + h + '</span><div class="hype-tit"><a href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.titulo || 'anúncio') + '</a>' +
+        '<div class="hype-meta">' + (a.canal !== 'shopping' ? logo(a.canal) + ' ' : '🛍️ ') + esc(a.loja || NOMEC[a.canal]) + ' · <b>' + esc(Hype.rotulo(h)) + '</b></div></div></div>' +
+        '<div class="hype-nums">' + (a.preco ? '<span class="preco">' + brl(a.preco) + '</span>' : '') +
+          (a.nota != null ? '<span>⭐ <b>' + String(a.nota).replace('.', ',') + '</b>' + (a.avaliacoes ? ' (' + num(a.avaliacoes) + ' avaliações)' : '') + '</span>' : (a.avaliacoes ? '<span>💬 ' + num(a.avaliacoes) + ' avaliações</span>' : '<span class="muted">sem nota no Google</span>')) +
+          (a.vendidos ? '<span>🛒 ' + num(a.vendidos) + '+ vendidos</span>' : '') + '</div>' +
+        (rv && (rv.positivos.length || rv.negativos.length) ? '<div class="hype-pontos">' +
+          rv.positivos.map(t => '<span class="hp pos" title="' + esc(t.exemplo) + '">✔ ' + esc(t.tema) + ' · ' + t.vezes + '</span>').join('') +
+          rv.negativos.map(t => '<span class="hp neg" title="' + esc(t.exemplo) + '">✖ ' + esc(t.tema) + ' · ' + t.vezes + '</span>').join('') +
+          '<span class="small muted"> (' + rv.lidas + ' avaliações lidas: ' + rv.nPos + ' boas, ' + rv.nNeg + ' ruins)</span></div>' : '') + '</li>';
+    }).join('') + '</ol>' + (l.length > 25 ? '<p class="small muted">Mostrando os 25 primeiros de ' + l.length + '.</p>' : '');
+  };
+  const salvar = () => { ls.set('radar_hype', f); desenhar(); };
+  box.querySelectorAll('[data-hc]').forEach(b => b.onclick = () => { f.canal = b.dataset.hc; box.querySelectorAll('[data-hc]').forEach(x => x.classList.toggle('on', x === b)); salvar(); });
+  $('#hype-est').onchange = () => { f.estrelas = Number($('#hype-est').value) || 0; salvar(); };
+  $('#hype-ord').onchange = () => { f.ordem = $('#hype-ord').value; salvar(); };
+  desenhar();
 }
 
 // 🗂️ A pesquisa em abas: nota e visão geral sempre no topo, o resto separado por assunto
@@ -1392,7 +1436,7 @@ async function pintarAvaliacoes(d, atualizar) {
     '</div>' + blocoOutras(r.outras) +
     (ia ? '' : '<p class="aviso">Com a chave da IA, o painel junta todas as fontes num resumo com as melhorias para o produto e para o anúncio.</p>');
   const at = $('#aval-atualizar'); if (at) at.onclick = e => { e.preventDefault(); pintarAvaliacoes(d, true); };
-  pintarPerguntas(r, d); pintarVideos(r);
+  pintarPerguntas(r, d); pintarVideos(r); pintarHype(d, r.porAnuncio || null);
   if (S.cliente && S.cliente.termo === d.termo) { S.cliente.aval = r; pintarCliente(); }
 }
 // ❓ Dúvidas dos compradores: o que precisa estar no título, nas fotos e na descrição
@@ -1658,6 +1702,7 @@ const AJUDA = [
   ['quem é o seu cliente', 'O perfil de quem compra esse produto, tirado do que os próprios compradores escrevem (avaliações, perguntas, reclamações e vídeos): se é gente que faz em casa ou profissional, para que usa e o que pesa na hora de escolher. Os estados vêm do Google Trends. Use isso para falar a língua do cliente no anúncio.'],
   ['o que os compradores perguntam', 'Perguntas que os compradores fazem nos anúncios dos concorrentes no Mercado Livre e as dúvidas que o Google mostra. Cada dúvida comum é algo para responder já no título, nas fotos ou na descrição do seu anúncio.'],
   ['vídeos sobre o produto', 'Os vídeos do YouTube sobre esse produto: o que mostram (teste de força, como aplicar, review). Serve de roteiro para o seu vídeo e as suas fotos. Pouco vídeo = espaço livre para você.'],
+  ['anúncios mais hypados', 'Todos os anúncios dos concorrentes num ranking só, com filtro por canal e por estrelas. O hype (0 a 100) junta vendas, número de avaliações e estrelas. Em cada anúncio do Mercado Livre aparecem os pontos positivos (✔) e negativos (✖) tirados das avaliações. No topo, a estratégia: o que os líderes têm em comum e como entrar para competir.'],
   ['o que os compradores reclamam', 'Lê as avaliações dos anúncios concorrentes no Mercado Livre e agrupa as reclamações por tema. O que eles erram é o que você pode fazer melhor no produto e deixar claro no anúncio.'],
   ['fotos do anúncio', 'Regras de foto de cada canal e pedidos prontos para gerar imagens com IA (capa, uso real, medidas, prova de força).'],
   // painel
