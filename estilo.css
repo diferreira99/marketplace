@@ -382,3 +382,17 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 }
 @media (max-width:520px){ .resp-grade > .resp:nth-child(3){grid-column:1/-1} }
 #resp-onde{flex-wrap:nowrap}
+
+/* rodapé e marca da barra lateral */
+.lado .marca{display:flex;align-items:center;gap:10px;padding:0 6px}
+.lado .marca img{width:34px;height:34px;border-radius:9px;flex:none}
+.lado .marca div{line-height:1.15}
+.lado-rodape{margin-top:auto;display:grid;gap:8px;padding:12px 4px 0;border-top:1px solid rgba(255,255,255,.08);font-size:.8rem}
+.rod-instalar{width:100%;padding:9px 10px;font-size:.85rem}
+.rod-status{display:flex;align-items:center;gap:8px;padding:0 6px;color:var(--side-ink);opacity:.85}
+.rod-ponto{width:8px;height:8px;border-radius:50%;background:#98a0b8;flex:none}
+.rod-status.ok .rod-ponto{background:#2bd47d;box-shadow:0 0 0 3px rgba(43,212,125,.18)}
+.rod-status.off .rod-ponto{background:#f0b429}
+.rod-botoes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.rod-botoes button{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:var(--side-ink);font-weight:600;font-size:.8rem;cursor:pointer}
+.rod-botoes button:hover{background:rgba(255,255,255,.12);color:#fff}

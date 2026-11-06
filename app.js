@@ -120,13 +120,24 @@ document.addEventListener('click', e => { const a = e.target.closest && e.target
 const tema = ls.get('radar_tema', null); if (tema) document.documentElement.dataset.theme = tema;
 $('#tema').onclick = () => {
   const escuro = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.dataset.theme = escuro ? 'light' : 'dark'; ls.set('radar_tema', document.documentElement.dataset.theme);
+  document.documentElement.dataset.theme = escuro ? 'light' : 'dark'; ls.set('radar_tema', document.documentElement.dataset.theme); rotuloTema();
 };
 function mostrarLogin(sim) { $('#login').classList.toggle('hidden', !sim); $('#app').classList.toggle('hidden', sim); if (sim) setTimeout(() => $('#senha').focus(), 50); }
 $('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); carregar(); primeiraVez(); };
 $('#senha').onkeydown = e => { if (e.key === 'Enter') $('#entrar').click(); };
 $('#sair').onclick = () => { ls.del('radar_senha'); $('#senha').value = ''; mostrarLogin(true); };
-$('#logos-lado').innerHTML = Object.keys(CANAIS).map(k => logo(k, true)).join('');
+function rotuloTema() {
+  const escuro = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  $('#tema-ic').textContent = escuro ? '☀️' : '🌙'; $('#tema-t').textContent = escuro ? 'Claro' : 'Escuro';
+}
+function statusRodape() {
+  const el = $('#rod-status'); if (!el) return;
+  const on = navigator.onLine !== false;
+  el.className = 'rod-status ' + (!on ? 'off' : S.nuvem ? 'ok' : '');
+  $('#rod-status-t').textContent = !on ? 'Sem internet' : S.nuvem ? 'Nuvem do time conectada' : 'Salvo neste aparelho';
+}
+addEventListener('online', statusRodape); addEventListener('offline', statusRodape);
+rotuloTema(); statusRodape();
 
 let abaAtual = 'painel';
 function irPara(aba) {
@@ -148,6 +159,7 @@ async function carregar() {
     S.nuvem = !!h.nuvem; if (S.nuvem) { S.hist = h.itens || []; ls.set('radar_hist', S.hist); }
     S.cfg = c;
   } catch (e) { erro(e.message); }
+  statusRodape();
   if (abaAtual === 'painel') pintarPainel();
   if (abaAtual === 'vigiadas') pintarVigiadas();
   if (abaAtual === 'taxas') pintarTaxas();

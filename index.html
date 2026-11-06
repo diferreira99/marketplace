@@ -30,7 +30,7 @@
 <div class="folha hidden" id="folha" role="dialog" aria-label="Menu"></div>
 <div class="app hidden" id="app">
   <aside class="lado">
-    <div class="marca">📡 Radar<span>Marketplace</span></div>
+    <div class="marca"><img src="/icones/icone-192.png" alt=""><div>Radar<span>Marketplace</span></div></div>
     <nav id="nav">
       <div class="nav-grupo">Principal</div>
       <button data-mob="1" data-aba="pesquisar"><span>🔎</span>Pesquisar</button>
@@ -48,10 +48,12 @@
       <button type="button" id="nav-mais" class="so-cel"><span>☰</span>Mais</button>
     </nav>
     <div class="lado-rodape">
-      <div class="canais-logos" id="logos-lado"></div>
-      <button class="link hidden" id="bt-instalar" type="button">📲 Instalar o app</button>
-      <button class="link" id="tema" type="button">🌓 Tema</button>
-      <button class="link" id="sair" type="button">🔒 Sair</button>
+      <button class="pri rod-instalar hidden" id="bt-instalar" type="button">📲 Instalar o app</button>
+      <div class="rod-status" id="rod-status"><span class="rod-ponto"></span><span id="rod-status-t">Conectando…</span></div>
+      <div class="rod-botoes">
+        <button type="button" id="tema" title="Trocar tema"><span id="tema-ic">🌙</span><span id="tema-t">Escuro</span></button>
+        <button type="button" id="sair" title="Sair"><span>🔒</span><span>Sair</span></button>
+      </div>
     </div>
   </aside>
 
