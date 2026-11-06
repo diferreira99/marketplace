@@ -504,12 +504,15 @@ function pintarPalavras(d) {
   const recente = t => { const h = S.hist.find(x => slug(x.termo) === slug(t)); return h && Date.now() - new Date(h.em).getTime() < 6 * 3600 * 1000; };
   const NOMES = { sua: 'sua', google: 'Google', mercadolivre: 'ML', amazon: 'Amazon', relacionada: 'relac.' };
   const cabeca = '<h2>⚡ Qual palavra-chave performa melhor <span class="tag">' + todas.length + ' palavras encontradas</span></h2>';
+  if (salvo && salvo.lista && salvo.lista.length && !salvo.naNuvem) {   // comparação antiga, só deste aparelho: sobe para a nuvem do time
+    api('/api/historico', { method: 'POST', body: JSON.stringify({ acao: 'palavras', termo: d.termo, resultado: salvo }) }).then(() => { ls.set(chave, { ...salvo, naNuvem: true }); S.palavrasIdx = null; }).catch(() => {});
+  }
   if (salvo && salvo.lista && salvo.lista.length && !box._escolher) return desenharRanking(salvo);
   // nada neste aparelho: procura a comparação na nuvem do time (sem gastar crédito)
   if (!box._escolher && !box._nuvem) {
     box._nuvem = true;
     api('/api/historico?palavras=1&termo=' + encodeURIComponent(d.termo)).then(r => {
-      if (r && r.lista && r.lista.length && S.atual === d && $('#card-palavras') === box && !box._escolher) { ls.set(chave, r); desenharRanking(r); }
+      if (r && r.lista && r.lista.length && S.atual === d && $('#card-palavras') === box && !box._escolher) { ls.set(chave, { ...r, naNuvem: true }); desenharRanking(r); }
     }).catch(() => {});
   }
   box.innerHTML = cabeca +
@@ -542,7 +545,7 @@ function pintarPalavras(d) {
     }
     const res = Palavras.ranking(itens); res.erros = itens.filter(x => x.erro); res.em = new Date().toISOString();
     ls.set(chave, res); box._escolher = false; desenharRanking(res); marcarTrilha('palavras');
-    api('/api/historico', { method: 'POST', body: JSON.stringify({ acao: 'palavras', termo: d.termo, resultado: res }) }).then(() => { S.palavrasIdx = null; }).catch(() => {});
+    api('/api/historico', { method: 'POST', body: JSON.stringify({ acao: 'palavras', termo: d.termo, resultado: res }) }).then(() => { ls.set(chave, { ...res, naNuvem: true }); S.palavrasIdx = null; }).catch(() => {});
   };
   function desenharRanking(r) {
     const b = r.melhor, PARTES = [['busca', 'Busca', 40], ['vendas', 'Vendas', 40], ['concorrencia', 'Concorrência', 20]];
