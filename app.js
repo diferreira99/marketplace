@@ -143,6 +143,8 @@ let abaAtual = 'painel';
 function irPara(aba) {
   abaAtual = aba;
   $$('#nav button').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
+  const bAba = $('#nav button[data-aba="' + aba + '"]'); if ($('#barra-aba') && bAba) $('#barra-aba').textContent = Array.from(bAba.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
+  if ($('#lado') && $('#lado').classList.contains('aberta')) abrirGaveta(false);
   const mais = $('#nav-mais'); if (mais) mais.classList.toggle('ativo', !!$('#nav button[data-aba="' + aba + '"]:not([data-mob])'));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
@@ -1358,6 +1360,18 @@ $('#nav-mais').onclick = () => abrirFolha($('#folha').classList.contains('hidden
 $('#folha-fundo').onclick = () => abrirFolha(false);
 addEventListener('keydown', e => { if (e.key === 'Escape') abrirFolha(false); });
 mostrarInstalar();
+
+// 📱 menu lateral do celular
+function abrirGaveta(sim) {
+  $('#lado').classList.toggle('aberta', sim); $('#gaveta-fundo').classList.toggle('on', sim);
+  document.body.classList.toggle('gaveta-aberta', sim); $('#abrir-menu').setAttribute('aria-expanded', sim);
+}
+$('#abrir-menu').onclick = () => abrirGaveta(!$('#lado').classList.contains('aberta'));
+$('#gaveta-fundo').onclick = () => abrirGaveta(false);
+addEventListener('keydown', e => { if (e.key === 'Escape') abrirGaveta(false); });
+(() => { let x0 = null; const l = $('#lado');
+  l.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  l.addEventListener('touchend', e => { if (x0 != null && x0 - e.changedTouches[0].clientX > 60) abrirGaveta(false); x0 = null; }, { passive: true }); })();
 
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());

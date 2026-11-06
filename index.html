@@ -29,7 +29,8 @@
 <div class="folha-fundo hidden" id="folha-fundo"></div>
 <div class="folha hidden" id="folha" role="dialog" aria-label="Menu"></div>
 <div class="app hidden" id="app">
-  <aside class="lado">
+  <div class="gaveta-fundo" id="gaveta-fundo"></div>
+  <aside class="lado" id="lado">
     <div class="marca"><img src="/icones/icone-192.png" alt=""><div>Radar<span>Marketplace</span></div></div>
     <nav id="nav">
       <div class="nav-grupo">Principal</div>
@@ -59,6 +60,11 @@
 
   <main class="conteudo">
     <header class="topo">
+      <div class="barra-cel">
+        <button type="button" id="abrir-menu" aria-label="Abrir menu" aria-controls="lado" aria-expanded="false"><span></span><span></span><span></span></button>
+        <img src="/icones/icone-192.png" alt="">
+        <div class="barra-cel-t"><b>Radar</b><span id="barra-aba">Painel</span></div>
+      </div>
       <form class="busca" id="f">
         <input id="q" placeholder="Palavra-chave do produto (ex.: fita de borda adesiva)" autocomplete="off" maxlength="120">
         <button class="pri" id="btn" type="submit">Pesquisar</button>

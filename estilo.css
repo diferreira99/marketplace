@@ -411,6 +411,40 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 }
 /* celular: a barra de baixo mostra só o menu (marca e rodapé ficam no "☰ Mais") */
 @media (max-width:860px){
-  .lado .marca,.lado-rodape{display:none!important}
-  .lado{overflow:visible}
+}
+
+/* 📱 celular: menu lateral (gaveta) no lugar da barra de baixo */
+.barra-cel,.gaveta-fundo{display:none}
+@media (max-width:860px){
+  .barra-cel{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+  .barra-cel img{width:30px;height:30px;border-radius:8px}
+  .barra-cel-t{display:flex;flex-direction:column;line-height:1.1}
+  .barra-cel-t b{font-size:1rem}
+  .barra-cel-t span{font-size:.78rem;color:var(--muted);font-weight:600}
+  #abrir-menu{width:42px;height:42px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:grid;place-content:center;gap:4px;padding:0;cursor:pointer}
+  #abrir-menu span{display:block;width:18px;height:2px;border-radius:2px;background:var(--ink)}
+  .lado{position:fixed;top:0;bottom:0;left:0;right:auto;width:min(84vw,300px);height:100dvh;z-index:50;
+    flex-direction:column;gap:12px;padding:calc(16px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));
+    transform:translateX(-105%);transition:transform .22s ease;overflow:hidden;box-shadow:none}
+  .lado.aberta{transform:none;box-shadow:12px 0 40px rgba(0,0,0,.35)}
+  .lado .marca{display:flex!important}
+  .lado-rodape{display:grid!important}
+  #nav{display:grid!important;grid-template-columns:1fr!important;flex:1;min-height:0;overflow-y:auto;align-content:start;gap:2px}
+  #nav button,#nav button[data-aba]:not([data-mob]){display:flex;flex-direction:row;gap:10px;padding:10px 12px;font-size:.95rem;text-align:left;justify-content:flex-start;min-width:0}
+  #nav button span{font-size:1rem}
+  .nav-grupo{display:block!important}
+  #nav-mais{display:none!important}
+  .gaveta-fundo{display:block;position:fixed;inset:0;background:rgba(5,8,20,.5);z-index:49;opacity:0;pointer-events:none;transition:opacity .2s}
+  .gaveta-fundo.on{opacity:1;pointer-events:auto}
+  .conteudo{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+  .topo{padding-top:calc(10px + env(safe-area-inset-top))}
+  .sec-abas{top:118px}
+  body.gaveta-aberta{overflow:hidden}
+}
+@media (max-width:860px){
+  #nav button,#nav button[data-aba]:not([data-mob]){padding:8px 12px;font-size:.92rem}
+  .nav-grupo{padding-top:8px}
+  .lado{gap:8px}
+  .lado .marca img{width:30px;height:30px}
+  .rod-instalar{padding:8px}
 }
