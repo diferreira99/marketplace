@@ -4,6 +4,8 @@
 const { exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
 const { lerAnuncio, idDoLink, canalDoLink, validar } = require('../lib/concorrente');
+const { alertasConcorrente } = require('../lib/alertas');
+const push = require('../lib/push');
 
 const MAX = 20;
 const LISTA = 'concorrentes.json';
@@ -55,7 +57,14 @@ async function handler(req, res, deps = {}) {
       if (!chave) return res.status(500).json({ erro: 'Falta configurar SERPER_API_KEY na Vercel.' });
       const c = ((await arm.lerArquivo(LISTA)) || []).find(x => x.id === b.id);
       if (!c) return res.status(404).json({ erro: 'Concorrente não encontrado.' });
-      return res.status(200).json({ ok: true, ponto: await checar(arm, c, chave, deps.fetch || fetch) });
+      const ponto = await checar(arm, c, chave, deps.fetch || fetch);
+      const alertas = alertasConcorrente(c.apelido || c.link, (await arm.lerArquivo(serieDe(c.id))) || []).map(a => ({ ...a, em: ponto.em }));
+      if (alertas.length) {
+        await arm.mudarArquivo('alertas.json', l => alertas.concat(Array.isArray(l) ? l : []).slice(0, 100));
+        const aviso = push.avisoDosAlertas(alertas);
+        if (aviso) { try { await push.enviar(arm, deps.webpush || require('web-push'), aviso); } catch (e) { /* aviso é extra */ } }
+      }
+      return res.status(200).json({ ok: true, ponto, alertas });
     }
     return res.status(400).json({ erro: 'Ação desconhecida.' });
   } catch (e) {

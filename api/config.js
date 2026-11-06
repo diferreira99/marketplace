@@ -1,10 +1,13 @@
 // GET  /api/config  -> configurações do time (taxas, imposto, margem alvo, custos por produto, vigiadas)
 // POST /api/config  { acao, ... } -> muda uma parte, sem atropelar o que outra pessoa salvou
+// GET  /api/config?push=1 -> chave pública para ativar avisos no celular
+// POST /api/config  { acao: 'push-inscrever' | 'push-sair' | 'push-teste', inscricao } -> avisos no celular (lib/push)
 'use strict';
 const { exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
 const { PADRAO, TAXAS_PADRAO } = require('../lib/margem');
 const { FAIXAS_PADRAO } = require('../lib/frete');
+const push = require('../lib/push');
 
 const MAX_VIGIADAS = 15;
 const num = (v, min, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined; };
@@ -26,12 +29,26 @@ async function handler(req, res, deps = {}) {
   const arm = deps.armazem || armazem.padrao();
   res.setHeader('Cache-Control', 'no-store');
   if (!exigirSenha(req, res)) return;
+  const webpush = deps.webpush || require('web-push');
+  if (req.method === 'GET' && req.query && req.query.push) {
+    if (!arm.ativo) return res.status(503).json({ erro: 'Armazenamento na nuvem não configurado.' });
+    const k = await push.chaves(arm, webpush);
+    return res.status(200).json({ publicKey: k.publicKey, aparelhos: ((await arm.lerArquivo('push/inscricoes.json')) || []).length });
+  }
   if (req.method === 'GET') return res.status(200).json({ nuvem: arm.ativo, ...completa(await arm.config()) });
   if (req.method !== 'POST') return res.status(405).json({ erro: 'use GET ou POST' });
   if (!arm.ativo) return res.status(503).json({ erro: 'Armazenamento na nuvem não configurado.' });
   let b = req.body;
   if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } }
   b = b || {};
+  if (String(b.acao || '').startsWith('push-')) {
+    try {
+      if (b.acao === 'push-inscrever') { await push.inscrever(arm, b.inscricao, b.aparelho); return res.status(200).json({ ok: true }); }
+      if (b.acao === 'push-sair') { await push.sair(arm, String((b.inscricao && b.inscricao.endpoint) || '')); return res.status(200).json({ ok: true }); }
+      if (b.acao === 'push-teste') return res.status(200).json({ ok: true, ...(await push.enviar(arm, webpush, { titulo: '📡 Radar Marketplace', texto: 'Avisos ligados! Quando um concorrente baixar o preço, você fica sabendo aqui.', url: '/#vigiadas', tag: 'radar-teste' })) });
+      return res.status(400).json({ erro: 'Ação desconhecida.' });
+    } catch (e) { return res.status(e.status || 500).json({ erro: e.message }); }
+  }
   try {
     const novo = await arm.mudarConfig(c => {
       if (b.acao === 'taxas') {

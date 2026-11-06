@@ -148,7 +148,7 @@ function irPara(aba) {
   const mais = $('#nav-mais'); if (mais) mais.classList.toggle('ativo', !!$('#nav button[data-aba="' + aba + '"]:not([data-mob])'));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, comparar: pintarComparar, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
@@ -719,7 +719,15 @@ async function gerarTitulos(d) {
     let aba = 'mercadolivre';
     function desenhar() {
       const x = r[aba] || { titulos: [], descricao: '', destaques: [] };
-      out.innerHTML = '<div class="abas-canal">' + Object.keys(CANAIS).map(k => '<button type="button" data-aba-canal="' + k + '" class="' + (k === aba ? 'pri' : '') + '">' + logo(k) + ' ' + CANAIS[k].nome + '</button>').join('') + '</div>' +
+      const u = r.usouRadar;
+      const usou = u ? '<div class="usou-radar"><b>🧠 O que o Radar usou neste anúncio</b><ul>' +
+        (u.melhor ? '<li>🥇 Título começa pela palavra mais forte: <b>' + esc(u.melhor) + '</b></li>' : '<li class="muted">Sem comparação de palavras-chave ainda: faça na aba 🔑 Palavras-chave para o título começar pela mais forte.</li>') +
+        (u.duvidas && u.duvidas.length ? '<li>❓ Responde as dúvidas: ' + esc(u.duvidas.join(', ').toLowerCase()) + '</li>' : '') +
+        (u.reclamacoes && u.reclamacoes.length ? '<li>🛡️ Vira vantagem o que reclamam dos concorrentes: ' + esc(u.reclamacoes.join(', ').toLowerCase()) + '</li>' : '') +
+        (u.usos && u.usos.length ? '<li>👤 Fala do uso do cliente: ' + esc(u.usos.join(', ').toLowerCase()) + '</li>' : '') +
+        '</ul><div class="small muted">Os campos entre [colchetes] são para você preencher com os dados reais do produto.</div></div>'
+        : '<div class="usou-radar small muted">Dica: abra a aba 🥊 Concorrência (reclamações) e faça a comparação de palavras-chave antes de gerar. O anúncio passa a usar o que o Radar descobriu.</div>';
+      out.innerHTML = usou + '<div class="abas-canal">' + Object.keys(CANAIS).map(k => '<button type="button" data-aba-canal="' + k + '" class="' + (k === aba ? 'pri' : '') + '">' + logo(k) + ' ' + CANAIS[k].nome + '</button>').join('') + '</div>' +
         '<div class="titulos"><div><b>Títulos</b> <span class="muted small">(até ' + r.limites[aba] + ' caracteres)</span><ol>' + x.titulos.map(t => '<li>' + esc(t) + '<span class="cont">' + t.length + '</span>' + copiar(t) + '</li>').join('') + '</ol></div>' +
         '<div><b>Descrição</b> ' + copiar(x.descricao) + '<pre class="desc">' + esc(x.descricao) + '</pre></div>' +
         '<div><b>Destaques</b> ' + copiar(x.destaques.map(y => '• ' + y).join('\n')) + '<ul>' + x.destaques.map(y => '<li>' + esc(y) + '</li>').join('') + '</ul></div>' +
@@ -838,11 +846,13 @@ function listaVigiadas(vig, curto) {
 async function pintarVigiadas() {
   const box = $('#aba-vigiadas'), vig = cfg().vigiadas || [];
   box.innerHTML = '<h1 class="titulo-aba">Vigiadas e concorrentes</h1><p class="sub-aba">Toda segunda de manhã o Radar refaz a pesquisa das palavras vigiadas, checa os anúncios dos concorrentes e avisa o que mudou.</p>' +
+    '<div class="card" style="margin-top:14px" id="card-avisos"></div>' +
     '<div class="card" style="margin-top:14px" id="alertas-lista"><h2>🚨 O que mudou</h2><div class="vazio"><span class="carregando"></span>carregando…</div></div>' +
     '<div class="card" style="margin-top:14px"><h2>🕵️ Concorrentes <span class="tag">até 20 · 1 crédito do Serper por checagem</span></h2>' +
       '<form id="conc-form" class="conc-form"><input id="conc-link" placeholder="Cole o link do anúncio do concorrente (Mercado Livre, Shopee ou Amazon)"><input id="conc-apelido" placeholder="Apelido (ex.: Loja X 22mm)"><button class="pri" type="submit">Acompanhar</button></form>' +
       '<div id="conc-lista"><div class="vazio"><span class="carregando"></span>carregando…</div></div></div>' +
     '<div class="card" style="margin-top:14px"><h2>🔔 Palavras vigiadas <span class="tag">até 15 · 6 créditos por semana cada</span></h2><div id="vig-lista">' + (vig.length ? '<div class="vazio"><span class="carregando"></span>carregando…</div>' : '<div class="vazio">Nenhuma palavra vigiada ainda. Abra uma pesquisa e toque em <b>🔔 Vigiar</b>.</div>') + '</div></div>';
+  pintarAvisos();
   $('#conc-form').onsubmit = async e => {
     e.preventDefault();
     const link = $('#conc-link').value.trim(); if (!link) return;
@@ -971,6 +981,83 @@ function pintarSimulador() {
     });
   }
   desenhar();
+}
+
+// ───────────────────────── ⚖️ COMPARAR PRODUTOS ─────────────────────────
+// Lado a lado: vende? quanto sobra? onde vender? a procura está subindo? Para decidir o que produzir mais.
+async function dadosCompletos(termo) {
+  const local = ls.get('radar_dados', {})[slug(termo)], h = S.hist.find(x => slug(x.termo) === slug(termo));
+  if (local && (!h || local.geradoEm >= h.em)) return local;
+  try { return await api('/api/historico?termo=' + encodeURIComponent(termo)); } catch (e) { return local || null; }
+}
+function contaDoProduto(d) {
+  const c = cfg(), sv = (c.custos || {})[slug(d.termo)] || {};
+  if (!sv.custo) return { semCusto: true };
+  const precos = {}; Object.keys(c.taxas).forEach(id => { const m = d.marketplaces[canalDaTaxa(id)]; precos[id] = (m && m.precos.mediana) || d.precos.mediana || 0; });
+  const peso = Frete.pesoConsiderado(sv.pesoKg || 0, sv.comp || 0, sv.larg || 0, sv.alt || 0), fretes = {};
+  Object.keys(c.taxas).forEach(id => { const f = Frete.fretePorPeso(canalDaTaxa(id), peso.considerado, c.fretes); if (f != null) fretes[id] = f; });
+  const r = Margem.calcular({ precos, custo: sv.custo, embalagem: sv.embalagem || 0, imposto: c.imposto, margemAlvo: c.margemAlvo, taxas: c.taxas, fretes });
+  return { r, margens: { mercadolivre: r.mercadolivre, shopee: r.shopee, amazon: r.amazon } };
+}
+function pintarComparar() {
+  const box = $('#aba-comparar'), sel = ls.get('radar_comparar', []);
+  const termos = S.hist.slice().sort((a, b) => String(b.em).localeCompare(String(a.em))).map(x => x.termo);
+  if (termos.length < 2) { box.innerHTML = '<h1 class="titulo-aba">Comparar produtos</h1><div class="card" style="margin-top:14px"><div class="vazio">Pesquise pelo menos 2 produtos (ou variações, ex.: fita 12 mm e fita 19 mm) para comparar lado a lado.</div></div>'; return; }
+  const opcoes = v => '<option value="">— escolha —</option>' + termos.map(t => '<option' + (t === v ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+  box.innerHTML = '<h1 class="titulo-aba">Comparar produtos</h1><p class="sub-aba">Coloque 2 ou 3 produtos (ou variações) lado a lado: qual vende mais, qual dá mais lucro, onde vender cada um e se a procura está subindo. Usa as pesquisas salvas: não gasta crédito.</p>' +
+    '<div class="card" style="margin-top:14px"><div class="cmp-sel">' + [0, 1, 2].map(i => '<label>Produto ' + (i + 1) + (i === 2 ? ' (opcional)' : '') + '<select data-cmp="' + i + '">' + opcoes(sel[i] || (i < 2 ? termos[i] : '')) + '</select></label>').join('') + '</div>' +
+    '<div class="pal-acoes" style="margin-top:12px"><button type="button" class="pri" id="cmp-ir">Comparar</button><span class="small muted">Para comparar o lucro, salve o custo de cada um na pesquisa (card "Vale a pena?").</span></div></div>' +
+    '<div id="cmp-res" style="margin-top:14px"></div>';
+  $('#cmp-ir').onclick = compararAgora;
+  if (sel.filter(Boolean).length >= 2) compararAgora();
+}
+async function compararAgora() {
+  const escolhidos = [...new Set($$('[data-cmp]').map(s => s.value).filter(Boolean))];
+  const out = $('#cmp-res');
+  if (escolhidos.length < 2) { out.innerHTML = '<div class="card"><div class="vazio">Escolha pelo menos 2 produtos diferentes.</div></div>'; return; }
+  ls.set('radar_comparar', escolhidos);
+  out.innerHTML = '<div class="card"><div class="vazio"><span class="carregando"></span>Montando a comparação…</div></div>';
+  const prods = await Promise.all(escolhidos.map(async t => {
+    const d = await dadosCompletos(t); if (!d) return { termo: t, erro: true };
+    const conta = contaDoProduto(d), rec = window.Recomendacao ? Recomendacao.recomendar(d, conta.margens || null) : null;
+    const canal = rec ? (rec.vencedor || rec.ranking[0].id) : 'mercadolivre';
+    const u = conta.r ? (canal === 'mercadolivre' ? conta.r.mercadolivre : conta.r[canal]) : null;
+    const tr = await api('/api/historico?tendencia=1&termo=' + encodeURIComponent(t)).catch(() => null);
+    return { termo: t, d, canal, rec, u, semCusto: !!conta.semCusto, tr: tr && tr.pontos && tr.pontos.length && !tr.semDados ? tr : null,
+      maxV: Math.max(0, ...Object.values(d.marketplaces).map(m => m.maxVendidos || 0)), anuncios: Object.values(d.marketplaces).reduce((a, m) => a + (m.anuncios || 0), 0) };
+  }));
+  const ok = prods.filter(p => !p.erro);
+  if (ok.length < 2) { out.innerHTML = '<div class="card"><div class="vazio">Não deu para abrir as pesquisas escolhidas. Abra cada uma pelo Histórico e tente de novo.</div></div>'; return; }
+  const CONC = { baixa: 3, 'média': 2, alta: 1 };
+  // cada linha: rótulo, valor (para decidir quem ganha), texto, maior é melhor?
+  const LINHAS = [
+    ['Nota de validação', p => p.d.validacao.nota, p => '<b>' + p.d.validacao.nota + '</b>/100 ' + nivelTag(p.d.validacao.nivel), true],
+    ['Anúncio que mais vende', p => p.maxV || null, p => p.maxV ? num(p.maxV) + '+ vendas' : '—', true],
+    ['Concorrência', p => CONC[p.d.validacao.concorrencia] || null, p => esc(p.d.validacao.concorrencia) + ' · ' + p.anuncios + ' anúncios', true],
+    ['Preço mais comum', () => null, p => brl(p.d.precos.mediana), true],
+    ['Melhor canal', p => p.rec ? p.rec.ranking[0].nota : null, p => p.rec ? logo(p.canal) + ' ' + esc(CANAIS[p.canal].nome) + ' <span class="small muted">(' + p.rec.ranking[0].nota + '/100)</span>' : '—', true],
+    ['Lucro por unidade', p => p.u ? p.u.lucro : null, p => p.u ? '<b class="' + (p.u.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(p.u.lucro) + '</b> <span class="small muted">no ' + esc(CANAIS[p.canal].nome) + ', a ' + brl(p.u.preco) + '</span>' : '<span class="small muted">salve o custo na pesquisa</span>', true],
+    ['Margem', p => p.u ? p.u.margem : null, p => p.u ? pct(p.u.margem) : '—', true],
+    ['Lucro em 100 vendas', p => p.u ? p.u.lucro * 100 : null, p => p.u ? brl0(p.u.lucro * 100) : '—', true],
+    ['Procura no Google (3 meses)', p => p.tr && p.tr.variacao3m != null ? p.tr.variacao3m : null, p => p.tr ? (p.tr.variacao3m != null ? '<span class="' + (p.tr.variacao3m >= 15 ? 'var-pos' : p.tr.variacao3m <= -15 ? 'var-neg' : '') + '">' + (p.tr.variacao3m > 0 ? '▲ +' : p.tr.variacao3m < 0 ? '▼ ' : '') + p.tr.variacao3m + '%</span>' : '—') + ' <span class="small muted">média ' + p.tr.mediaGeral + '</span>' : '<span class="small muted">sem dados</span>', true],
+    ['Meses fortes', () => null, p => p.tr && p.tr.mesesFortes ? esc(p.tr.mesesFortes.join(', ')) : '—', true],
+  ];
+  const vitorias = ok.map(() => 0);
+  const linhasHtml = LINHAS.map(([rot, val, txt, maior]) => {
+    const vs = ok.map(val), validos = vs.filter(v => v != null);
+    const melhor = validos.length >= 2 && new Set(validos).size > 1 ? (maior ? Math.max(...validos) : Math.min(...validos)) : null;
+    return '<tr><th>' + rot + '</th>' + ok.map((p, i) => { const g = melhor != null && vs[i] === melhor; if (g) vitorias[i]++; return '<td class="' + (g ? 'cmp-ganha' : '') + '">' + (g ? '🏆 ' : '') + txt(p) + '</td>'; }).join('') + '</tr>';
+  }).join('');
+  // veredito: lucro em 100 vendas pesa mais; sem custo, vale a nota
+  const comLucro = ok.filter(p => p.u);
+  const lider = comLucro.length >= 2 ? comLucro.slice().sort((a, b) => b.u.lucro * (1 + b.d.validacao.nota / 100) - a.u.lucro * (1 + a.d.validacao.nota / 100))[0]
+    : ok.slice().sort((a, b) => b.d.validacao.nota - a.d.validacao.nota || b.maxV - a.maxV)[0];
+  const porque = [lider.u ? 'dá ' + brl(lider.u.lucro) + ' por venda no ' + CANAIS[lider.canal].nome : '', 'nota ' + lider.d.validacao.nota + '/100', lider.maxV ? 'o anúncio que mais vende tem ' + num(lider.maxV) + '+ vendas' : '', lider.tr && lider.tr.variacao3m >= 15 ? 'a procura está subindo' : ''].filter(Boolean).join(', ');
+  out.innerHTML = '<div class="card"><div class="cli-resumo">🏆 <b>Priorize: ' + esc(lider.termo) + '</b>. ' + esc(porque.charAt(0).toUpperCase() + porque.slice(1)) + '.' +
+    (comLucro.length < 2 ? ' <span class="small muted">Para a decisão considerar o lucro, salve o custo de cada produto na pesquisa.</span>' : '') + '</div>' +
+    '<div class="tabela-wrap"><table class="cmp-tab"><thead><tr><th></th>' + ok.map((p, i) => '<th><a href="#" data-cmp-abrir="' + esc(p.termo) + '">' + esc(p.termo) + '</a><div class="small muted">' + vitorias[i] + ' ' + (vitorias[i] === 1 ? 'vitória' : 'vitórias') + '</div></th>').join('') + '</tr></thead><tbody>' + linhasHtml + '</tbody></table></div>' +
+    '<p class="small muted">🏆 = melhor naquele ponto. Toque no nome do produto para abrir a pesquisa completa.</p></div>';
+  $$('[data-cmp-abrir]').forEach(a => a.onclick = e => { e.preventDefault(); abrir(a.dataset.cmpAbrir); });
 }
 
 // ───────────────────────── ⚙️ TAXAS ─────────────────────────
@@ -1378,11 +1465,13 @@ const AJUDA = [
   ['todas as pesquisas', 'A lista completa. Toque numa linha para abrir a pesquisa salva (não gasta crédito).'],
   // outras abas
   ['simulador de faturamento', 'Conta rápida: se eu vender X unidades a R$ Y, quanto entra e quanto sobra no bolso em cada canal.'],
+  ['comparar produtos', 'Coloca 2 ou 3 pesquisas lado a lado (por exemplo, fita 12 mm e 19 mm): nota, vendas, concorrência, melhor canal, lucro por unidade e se a procura está subindo. O 🏆 marca o melhor em cada ponto e o topo diz qual priorizar.'],
   ['catálogo da fábrica', 'Seus produtos e variações (largura, comprimento...). Com custo e peso de cada variação, o Radar mostra quais dão mais lucro e o melhor canal de cada uma.'],
   ['ranking de lucro', 'As variações do catálogo ordenadas pelo lucro por unidade no melhor canal de cada uma.'],
   ['pesquisa em lote', 'Pesquisa até 20 palavras de uma vez e mostra o ranking. Bom para comparar variações e ideias.'],
   ['ranking', 'As palavras pesquisadas no lote, da maior nota para a menor.'],
   ['vigiadas e concorrentes', 'O que o Radar acompanha sozinho toda segunda: palavras-chave e anúncios de concorrentes.'],
+  ['avisos no celular', 'Notificação neste aparelho quando um concorrente com ⭐ baixar o preço ou o mercado mudar. Ative em cada aparelho. No iPhone, só com o app instalado na tela de início.'],
   ['concorrentes', 'Anúncios de concorrentes que você acompanha: preço, vendidos e nota a cada checagem. Cole o link do anúncio para começar.'],
   ['palavras vigiadas', 'Palavras-chave refeitas toda segunda. A tabela mostra a nota e como o preço mudou desde que começou a vigiar.'],
   ['minha loja', 'Os seus números reais do Mercado Livre (só leitura): vendas, visitas e conversão dos últimos 30 dias, anúncio por anúncio.'],
@@ -1598,8 +1687,57 @@ document.addEventListener('click', async e => {
   b.disabled = false; $$('[data-estrela]').forEach(atualizarEstrela);
 }, true);
 
+// 🔔 Avisos no celular (Web Push): concorrente baixou o preço, preço do mercado caiu, entrou concorrência
+function chaveParaBytes(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4), raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+function nomeDoAparelho() {
+  const u = navigator.userAgent;
+  return (/iphone/i.test(u) ? 'iPhone' : /ipad/i.test(u) ? 'iPad' : /android/i.test(u) ? 'Android' : /mac/i.test(u) ? 'Mac' : /windows/i.test(u) ? 'Windows' : 'Navegador') + (instalado() ? ' (app)' : '');
+}
+async function pintarAvisos() {
+  const box = $('#card-avisos'); if (!box) return;
+  const cab = '<h2>🔔 Avisos no celular <button type="button" class="ajuda" data-txt="O Radar manda uma notificação neste aparelho quando um concorrente com ⭐ baixar o preço, quando o preço do mercado cair 10% ou mais, ou quando entrar concorrência. Acontece na checagem de segunda e quando você toca em checar agora num concorrente.">?</button></h2>';
+  const temSuporte = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  if (!temSuporte) {
+    box.innerHTML = cab + '<p class="small">' + (ehIOS && !instalado() ? 'No iPhone os avisos só funcionam com o app instalado: no Safari, toque em <b>Compartilhar</b> → <b>Adicionar à Tela de Início</b> e abra o Radar pelo ícone. Depois volte aqui.' : 'Este navegador não aceita avisos. Use o Chrome (Android ou computador) ou o app instalado no iPhone.') + '</p>';
+    return;
+  }
+  if (Notification.permission === 'denied') { box.innerHTML = cab + '<p class="small">Os avisos estão <b>bloqueados</b> para o Radar neste aparelho. Libere nas configurações do navegador (Notificações) e volte aqui.</p>'; return; }
+  let sub = null; try { sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription(); } catch (e) { sub = null; }
+  if (!$('#card-avisos')) return;
+  box.innerHTML = cab + (sub
+    ? '<p class="small"><b class="var-pos">✅ Avisos ligados neste aparelho.</b> Você recebe quando um concorrente baixar o preço ou o mercado mudar.</p><div class="pal-acoes"><button type="button" class="sec" id="av-teste">Enviar aviso de teste</button><button type="button" class="link" id="av-sair">desligar neste aparelho</button></div>'
+    : '<p class="small">Receba uma notificação aqui quando um concorrente com ⭐ baixar o preço ou o mercado mudar. Vale só para este aparelho: ative em cada celular ou computador que quiser.</p><button type="button" class="pri" id="av-ligar">Ativar avisos neste aparelho</button>');
+  const ligar = $('#av-ligar'), teste = $('#av-teste'), sairB = $('#av-sair');
+  if (ligar) ligar.onclick = async () => {
+    ligar.disabled = true; ligar.textContent = 'Ativando…';
+    try {
+      if ((await Notification.requestPermission()) !== 'granted') { avisoRapido('Você não permitiu os avisos.'); return pintarAvisos(); }
+      const { publicKey } = await api('/api/config?push=1');
+      const reg = await navigator.serviceWorker.ready;
+      const nova = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveParaBytes(publicKey) });
+      await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'push-inscrever', inscricao: nova.toJSON(), aparelho: nomeDoAparelho() }) });
+      avisoRapido('✅ Avisos ligados neste aparelho.');
+    } catch (e) { avisoRapido('⚠️ Não deu para ativar: ' + esc(e.message)); }
+    pintarAvisos();
+  };
+  if (teste) teste.onclick = async () => {
+    teste.disabled = true;
+    try { const r = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'push-teste' }) }); avisoRapido(r.enviados ? '📨 Aviso enviado para ' + r.enviados + ' aparelho' + (r.enviados > 1 ? 's' : '') + '. Deve chegar em segundos.' : 'Nenhum aparelho recebeu. Desligue e ative de novo.'); }
+    catch (e) { avisoRapido('⚠️ ' + esc(e.message)); }
+    teste.disabled = false;
+  };
+  if (sairB) sairB.onclick = async () => {
+    try { await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'push-sair', inscricao: sub.toJSON() }) }); await sub.unsubscribe(); avisoRapido('Avisos desligados neste aparelho.'); }
+    catch (e) { avisoRapido('⚠️ ' + esc(e.message)); }
+    pintarAvisos();
+  };
+}
+
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
 function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel'].includes(aba0)) irPara(aba0); else primeiraVez(); }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel', 'comparar'].includes(aba0)) irPara(aba0); else primeiraVez(); }
 })();

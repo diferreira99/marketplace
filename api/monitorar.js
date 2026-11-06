@@ -6,6 +6,7 @@ const armazem = require('../lib/armazem');
 const { pesquisar } = require('./pesquisa');
 const concorrentes = require('./concorrentes');
 const { alertasVigiada, alertasConcorrente } = require('../lib/alertas');
+const push = require('../lib/push');
 
 async function handler(req, res, deps = {}) {
   const arm = deps.armazem || armazem.padrao();
@@ -51,7 +52,11 @@ async function handler(req, res, deps = {}) {
       avisado = r.ok;
     } catch (e) { avisado = false; }
   }
-  return res.status(200).json({ ok: true, feitos, falhas, alertas: alertas.length, avisado });
+  // aviso no celular de quem ativou (só os alertas importantes, numa notificação só)
+  let notificados = 0;
+  const aviso = push.avisoDosAlertas(alertas);
+  if (aviso) { try { notificados = (await push.enviar(arm, deps.webpush || require('web-push'), aviso)).enviados; } catch (e) { notificados = 0; } }
+  return res.status(200).json({ ok: true, feitos, falhas, alertas: alertas.length, avisado, notificados });
 }
 
 module.exports = handler;
