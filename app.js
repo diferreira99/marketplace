@@ -971,22 +971,35 @@ function pintarPrecoIdeal(d, margens) {
 // ───────────────────────── 🗣️ RECLAMAÇÕES ─────────────────────────
 async function pintarAvaliacoes(d, atualizar) {
   const box = $('#card-aval'); if (!box) return;
-  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">avaliações dos concorrentes no Mercado Livre</span></h2><div class="vazio"><span class="carregando"></span>Lendo avaliações…</div>';
+  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">Mercado Livre + Reclame Aqui</span></h2><div class="vazio"><span class="carregando"></span>Lendo avaliações e reclamações…</div>';
   let r;
   try { r = await api('/api/avaliacoes', { method: 'POST', body: JSON.stringify({ termo: d.termo, atualizar: !!atualizar }) }); }
   catch (e) { box.innerHTML = '<h2>🗣️ O que os compradores reclamam</h2><div class="vazio">' + esc(e.message) + '</div>'; return; }
   if (!$('#card-aval') || S.atual !== d) return;
-  if (!r.anuncios) { box.innerHTML = '<h2>🗣️ O que os compradores reclamam</h2><div class="vazio">' + esc(r.motivo || 'Sem avaliações disponíveis.') + '</div>'; return; }
-  const ia = r.ia;
-  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">' + r.anuncios + ' anúncios · ' + r.lidas + ' avaliações lidas · <a href="#" id="aval-atualizar">atualizar</a></span></h2>' +
-    (ia ? '<div class="grid g2" style="margin-top:0"><div><b>Reclamações mais comuns</b><ul class="onde-lista contras">' + ia.reclamacoes.map(x => '<li>✖ <b>' + esc(x.tema) + '</b> (' + esc(x.quanto) + '): “' + esc(x.exemplo) + '”</li>').join('') + '</ul>' +
+  const ia = r.ia, ra = r.reclameAqui;
+  const blocoML = !r.anuncios ? '<div class="vazio small">' + esc(r.motivoML || r.motivo || 'Sem avaliações do Mercado Livre agora.') + '</div>'
+    : (r.temas.length ? barrasH(r.temas.map(t => ({ rotulo: t.tema, valor: t.vezes, cor: 'var(--bad)', dica: esc(t.tema) + ': ' + t.vezes + '<br>' + t.exemplos.map(e => '“' + esc(e) + '”').join('<br>') })), {}) +
+        '<div class="paa" style="margin-top:10px">' + r.temas.slice(0, 4).map(t => '<details><summary>' + esc(t.tema) + ' (' + t.vezes + ')</summary>' + t.exemplos.map(e => '<p class="small">“' + esc(e) + '”</p>').join('') + '</details>').join('') + '</div>'
+      : '<div class="vazio small">Das ' + r.lidas + ' avaliações lidas, ' + r.negativos + ' são negativas e nenhuma cai nos temas comuns. Bom sinal: o produto dos concorrentes agrada.</div>') +
+      '<p class="small muted">' + r.anuncios + ' anúncios · ' + r.negativos + ' avaliações negativas e ' + r.positivos + ' positivas.</p>';
+  const blocoRA = !ra ? '<div class="vazio small">Falta a chave do Serper para buscar no Reclame Aqui.</div>'
+    : ra.erro ? '<div class="vazio small">' + esc(ra.erro) + '</div>'
+    : !ra.itens.length ? '<div class="vazio small">Nenhuma reclamação desse produto no Reclame Aqui (pelo Google). Bom sinal, ou o produto é vendido mais em marketplace.</div>'
+    : (ra.oportunidade ? '<div class="ra-oport">💡 <b>Oportunidade:</b> a reclamação que mais aparece é <b>' + esc(ra.oportunidade.tema.toLowerCase()) + '</b> (' + ra.oportunidade.vezes + '). ' + esc(ra.oportunidade.dica) + '</div>' : '') +
+      (ra.temas.length ? '<div class="chips" style="margin:8px 0">' + ra.temas.slice(0, 6).map(t => '<span class="chip">' + esc(t.tema) + ' · ' + t.vezes + '</span>').join('') + '</div>' : '') +
+      '<ul class="ra-lista">' + ra.itens.slice(0, 8).map(i => '<li><a href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.titulo) + '</a><div class="small muted">' + esc(i.empresa) + (i.data ? ' · ' + esc(i.data) : '') + '</div>' + (i.trecho ? '<div class="small">' + esc(i.trecho) + '</div>' : '') + '</li>').join('') + '</ul>' +
+      (ra.itens.length > 8 ? '<details><summary class="small">ver mais ' + (ra.itens.length - 8) + '</summary><ul class="ra-lista">' + ra.itens.slice(8).map(i => '<li><a href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.titulo) + '</a><div class="small muted">' + esc(i.empresa) + '</div></li>').join('') + '</ul></details>' : '') +
+      (ra.empresas.length ? '<p class="small muted">Empresas mais citadas: ' + ra.empresas.map(e => esc(e.nome) + ' (' + e.vezes + ')').join(' · ') + '</p>' : '');
+  box.innerHTML = '<h2>🗣️ O que os compradores reclamam <span class="tag">Mercado Livre + Reclame Aqui · <a href="#" id="aval-atualizar">atualizar</a></span></h2>' +
+    (ia ? '<div class="ra-ia"><div class="grid g2" style="margin-top:0"><div><b>Reclamações mais comuns</b><ul class="onde-lista contras">' + ia.reclamacoes.map(x => '<li>✖ <b>' + esc(x.tema) + '</b> (' + esc(x.quanto) + '): “' + esc(x.exemplo) + '”</li>').join('') + '</ul>' +
         '<b style="display:block;margin-top:10px">O que elogiam</b><ul class="onde-lista pros">' + ia.elogios.map(x => '<li>✔ ' + esc(x) + '</li>').join('') + '</ul></div>' +
         '<div><b>🏭 Melhore no produto</b><ul class="onde-lista">' + ia.melhoriasProduto.map(x => '<li>→ ' + esc(x) + '</li>').join('') + '</ul>' +
-        '<b style="display:block;margin-top:10px">📝 Deixe claro no anúncio</b><ul class="onde-lista">' + ia.melhoriasAnuncio.map(x => '<li>→ ' + esc(x) + '</li>').join('') + '</ul></div></div>'
-      : (r.temas.length ? barrasH(r.temas.map(t => ({ rotulo: t.tema, valor: t.vezes, cor: 'var(--bad)', dica: esc(t.tema) + ': ' + t.vezes + '<br>' + t.exemplos.map(e => '“' + esc(e) + '”').join('<br>') })), {}) +
-          '<div class="paa" style="margin-top:10px">' + r.temas.slice(0, 4).map(t => '<details><summary>' + esc(t.tema) + ' (' + t.vezes + ')</summary>' + t.exemplos.map(e => '<p class="small">“' + esc(e) + '”</p>').join('') + '</details>').join('') + '</div>'
-        : '<div class="vazio">Das ' + r.lidas + ' avaliações lidas, ' + r.negativos + ' são negativas e nenhuma cai nos temas comuns. Bom sinal: o produto dos concorrentes agrada.</div>') +
-        '<p class="aviso">' + r.negativos + ' avaliações negativas e ' + r.positivos + ' positivas. Com a chave da IA, o painel resume e sugere as melhorias.</p>');
+        '<b style="display:block;margin-top:10px">📝 Deixe claro no anúncio</b><ul class="onde-lista">' + ia.melhoriasAnuncio.map(x => '<li>→ ' + esc(x) + '</li>').join('') + '</ul></div></div></div>' : '') +
+    '<div class="grid g2" style="margin-top:' + (ia ? '14px' : '0') + '">' +
+      '<div><div class="ra-fonte">' + logo('mercadolivre') + ' <b>Avaliações no Mercado Livre</b></div>' + blocoML + '</div>' +
+      '<div><div class="ra-fonte">📣 <b>Reclame Aqui</b> <button type="button" class="ajuda" data-txt="Reclamações sobre esse tipo de produto no Reclame Aqui, achadas pelo Google (título e trecho que o Google mostra). Mostram o que dá errado com os concorrentes: é o que você pode fazer melhor e deixar claro no anúncio. Gasta 1 a 2 créditos do Serper e fica guardado por 7 dias.">?</button></div>' + blocoRA + '</div>' +
+    '</div>' +
+    (ia ? '' : '<p class="aviso">Com a chave da IA, o painel junta as duas fontes num resumo com as melhorias para o produto e para o anúncio.</p>');
   const at = $('#aval-atualizar'); if (at) at.onclick = e => { e.preventDefault(); pintarAvaliacoes(d, true); };
 }
 
