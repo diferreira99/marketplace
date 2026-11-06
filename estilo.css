@@ -296,3 +296,21 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .sim-ano{margin:12px 0 6px;font-size:.88rem}
 .sim-comp tr.sim-sel td{background:var(--brand-soft)}
 @media (max-width:1100px){.bigs{grid-template-columns:repeat(2,minmax(0,1fr))}.big.lucro,.big.prejuizo{grid-column:1/-1;order:-1}}
+
+/* 🗂️ menu em grupos e pesquisa em abas */
+.nav-grupo{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;opacity:.45;padding:12px 12px 2px}
+.nav-grupo:first-child{padding-top:0}
+#nav{gap:2px}
+.lado{overflow-y:auto}
+@media (max-width:860px){.nav-grupo{display:none}}
+.sec-abas{position:sticky;top:76px;z-index:4;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:16px 0 0;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.sec-abas button{flex:1 0 auto;background:none;border:none;padding:10px 14px;border-radius:10px;font-weight:700;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.sec-abas button:hover{background:var(--bg)}
+.sec-abas button.on{background:var(--brand);color:#fff}
+.sec-desc{margin:14px 2px 0;font-size:.85rem;color:var(--muted)}
+.secao > .card:first-of-type,.secao > .grid:first-of-type{margin-top:10px}
+@media (max-width:860px){.sec-abas{top:64px}.sec-abas button{flex:0 0 auto;padding:9px 12px;font-size:.85rem}}
+.por-que{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.por-que summary{cursor:pointer;font-weight:700;font-size:.85rem;color:var(--brand)}
+.por-que[open] summary{margin-bottom:8px}
+.mini-kpis .l{display:flex;align-items:center;flex-wrap:wrap;gap:2px}

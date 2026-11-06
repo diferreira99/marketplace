@@ -271,8 +271,10 @@ function pintarResultado(d, salvo) {
       '<div><div class="v">' + brl(d.precos.min) + '</div><div class="l">Menor · até ' + brl(d.precos.max) + '</div></div>' +
       '<div><div class="v">' + totalAn + '</div><div class="l">Anúncios nos 3 canais</div></div>' +
       '<div><div class="v">' + d.shopping.lojas + '</div><div class="l">Lojas no Google Shopping</div></div></div>' +
+      (d.dicas.length ? '<ul class="dicas">' + d.dicas.slice(0, 2).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+      '<details class="por-que"><summary>Por que a nota deu ' + v.nota + '? (' + v.pontos.length + ' sinais)</summary>' +
       '<ul class="motivos">' + v.pontos.map(p => '<li><span class="pt ' + (p.p ? '' : 'zero') + '">+' + p.p + '</span><span>' + esc(p.motivo) + '</span></li>').join('') + '</ul>' +
-      (d.dicas.length ? '<ul class="dicas">' + d.dicas.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+      (d.dicas.length > 2 ? '<ul class="dicas">' + d.dicas.slice(2).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') + '</details>' +
       ((d.falhas || []).length ? '<div class="aviso">⚠️ Não vieram: ' + d.falhas.map(f => esc(f.fonte)).join(', ') + '</div>' : '') +
     '</div>' +
   '</div>' +
@@ -319,6 +321,44 @@ function pintarResultado(d, salvo) {
   pintarFotos(d);
   pintarPalavras(d);
   $('#bt-ir-palavras').onclick = () => destacar('#card-palavras');
+  organizarEmAbas();
+}
+
+// 🗂️ A pesquisa em abas: nota e visão geral sempre no topo, o resto separado por assunto
+const SECOES = [
+  ['resumo', '🏆 Resumo', 'Onde vender e o plano de ação para este produto.'],
+  ['lucro', '💰 Lucro e preço', 'Seu custo, quanto sobra por venda, simulador, kits e o preço ideal em cada canal.'],
+  ['concorrencia', '🥊 Concorrência', 'Quem já vende, por quanto, o que vende e do que os compradores reclamam.'],
+  ['palavras', '🔑 Palavras-chave', 'O que o povo digita, o top 10 do Google e qual palavra performa melhor.'],
+  ['anuncio', '✍️ Anúncio', 'Anúncio pronto para os 3 canais e as fotos que vendem.'],
+];
+function secaoDoBloco(el) {
+  const id = el.id || '';
+  if (el.classList.contains('g-hero')) return 'topo';
+  if (id === 'card-onde' || id === 'card-plano') return 'resumo';
+  if (id === 'card-margem' || id === 'card-preco') return 'lucro';
+  if (id === 'card-titulos' || id === 'card-fotos') return 'anuncio';
+  if (id === 'card-palavras' || el.querySelector('#bt-ir-palavras')) return 'palavras';
+  return 'concorrencia';   // marketplaces, Shopping, distribuição, galeria, reclamações, evolução
+}
+function organizarEmAbas() {
+  const box = $('#resultado'), blocos = Array.from(box.children);
+  const atual = ls.get('radar_secao', 'resumo');
+  const barra = document.createElement('div'); barra.className = 'sec-abas'; barra.setAttribute('role', 'tablist');
+  barra.innerHTML = SECOES.map(([k, n]) => '<button type="button" role="tab" data-sec="' + k + '"' + (k === atual ? ' class="on" aria-selected="true"' : '') + '>' + n + '</button>').join('');
+  const conts = {};
+  SECOES.forEach(([k, , desc]) => { const c = document.createElement('div'); c.className = 'secao' + (k === atual ? '' : ' hidden'); c.dataset.secao = k; c.innerHTML = '<p class="sec-desc">' + esc(desc) + '</p>'; conts[k] = c; });
+  let topo = null;
+  blocos.forEach(el => { const k = secaoDoBloco(el); if (k === 'topo') { topo = el; return; } conts[k].appendChild(el); });
+  if (topo) topo.after(barra); else box.prepend(barra);
+  let ref = barra; SECOES.forEach(([k]) => { ref.after(conts[k]); ref = conts[k]; });
+  barra.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => mostrarSecao(b.dataset.sec, true));
+}
+function mostrarSecao(k, rolar) {
+  ls.set('radar_secao', k);
+  $$('.sec-abas [data-sec]').forEach(b => { const on = b.dataset.sec === k; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  $$('#resultado .secao').forEach(c => c.classList.toggle('hidden', c.dataset.secao !== k));
+  if (rolar) { const b = $('.sec-abas'); if (b && b.getBoundingClientRect().top < 0) b.scrollIntoView({ block: 'start' }); }
 }
 
 // ⚡ Comparar palavras-chave: pesquisa todas as variações de uma vez e diz qual tem mais força
@@ -1176,7 +1216,7 @@ function irParaPesquisa(sel) {
   abrir(h.termo).then(() => destacar(sel));
 }
 function destacar(sel) {
-  setTimeout(() => { const el = document.querySelector(sel); if (!el) return; el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('destaque'); setTimeout(() => el.classList.remove('destaque'), 2600); }, 250);
+  setTimeout(() => { const el = document.querySelector(sel); if (!el) return; const sec = el.closest('.secao'); if (sec && sec.classList.contains('hidden')) mostrarSecao(sec.dataset.secao); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('destaque'); setTimeout(() => el.classList.remove('destaque'), 2600); }, 250);
 }
 function progressoTrilha() { const f = PASSOS.filter(p => { try { return p.feito(); } catch (e) { return false; } }); return { feitos: f.length, total: PASSOS.length, proximo: PASSOS.find(p => !f.includes(p)) }; }
 function atualizarSeloTrilha() {
