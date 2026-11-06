@@ -275,3 +275,24 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .pal-op input{width:auto;margin:0}
 .pal-f{display:flex;gap:3px}.pal-f i{font-style:normal;font-size:.65rem;font-weight:700;padding:1px 5px;border-radius:6px;background:var(--line);color:var(--muted)}
 .pal-acoes{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+
+/* 💵 simulador */
+.sim{margin:4px 0 16px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--bg)}
+.sim-entradas{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end}
+.sim-entradas label{display:grid;gap:4px;font-size:.78rem;color:var(--muted);font-weight:600}
+.sim-in{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:.9rem;font-weight:600}
+.sim-in input{width:110px;font-size:1.05rem;font-weight:700}
+.sim-entradas select{min-width:180px}
+.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.bigs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.big{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
+.big-l{font-size:.75rem;color:var(--muted);font-weight:700;display:flex;align-items:center}
+.big-v{font-size:1.6rem;font-weight:800;letter-spacing:-.02em;margin:4px 0 2px;overflow-wrap:anywhere}
+.big-s{font-size:.72rem;color:var(--ink-2)}
+.big.neg .big-v{color:var(--ink-2)}
+.big.lucro{border:2px solid #1f9d55;background:linear-gradient(0deg,rgba(31,157,85,.08),rgba(31,157,85,.08)),var(--card)}
+.big.lucro .big-v{color:#1f9d55;font-size:2rem}
+.big.prejuizo{border:2px solid #d64545}.big.prejuizo .big-v{color:#d64545;font-size:2rem}
+.sim-ano{margin:12px 0 6px;font-size:.88rem}
+.sim-comp tr.sim-sel td{background:var(--brand-soft)}
+@media (max-width:1100px){.bigs{grid-template-columns:repeat(2,minmax(0,1fr))}.big.lucro,.big.prejuizo{grid-column:1/-1;order:-1}}

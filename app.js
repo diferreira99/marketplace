@@ -134,7 +134,7 @@ function irPara(aba) {
   $$('#nav button').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button').forEach(b => b.onclick = () => irPara(b.dataset.aba));
@@ -151,6 +151,7 @@ async function carregar() {
   if (abaAtual === 'vigiadas') pintarVigiadas();
   if (abaAtual === 'taxas') pintarTaxas();
   if (abaAtual === 'trilha') pintarTrilha();
+  if (abaAtual === 'simulador') pintarSimulador();
   atualizarSeloTrilha();
 }
 function cfg() { return S.cfg || { imposto: Margem.PADRAO.imposto, margemAlvo: Margem.PADRAO.margemAlvo, taxas: Margem.TAXAS_PADRAO, custos: {}, vigiadas: [] }; }
@@ -425,7 +426,7 @@ function pintarMargem(d) {
     '</div>' +
     '<div class="faixa-info" id="m-info"></div>' +
     '<div style="margin:6px 0 12px"><button type="button" class="sec" id="m-salvar">Salvar dados deste produto para o time</button></div>' +
-    '<div id="m-saida"></div><div id="m-meta-saida"></div><div id="m-kits"></div>';
+    '<div id="m-sim"></div><div id="m-saida"></div><div id="m-meta-saida"></div><div id="m-kits"></div>';
   $('#ir-taxas').onclick = e => { e.preventDefault(); irPara('taxas'); };
   const precos = {}; Object.keys(c.taxas).forEach(id => precos[id] = Math.round(precoCanal(id) * 100) / 100);
   let taxaML = null;   // taxa oficial da categoria (vem do Mercado Livre)
@@ -466,6 +467,11 @@ function pintarMargem(d) {
         '<p class="small muted">' + melhorCanal(linhas) + '</p>' : '') +
       '<p class="aviso">Comissão do Mercado Livre: oficial da categoria quando o ML responde. As outras taxas e a tabela de frete são de referência: confira em ⚙️ Taxas.</p>';
     $$('[data-preco]').forEach(inp => inp.onchange = () => { precos[inp.dataset.preco] = Number(inp.value) || 0; calc(); });
+    // 💵 simulador: X unidades a R$ Y = quanto fica no bolso
+    const simEstado = ls.get('radar_sim', { qtd: 100, canal: 'mercadolivre' });
+    if (!r[simEstado.canal]) simEstado.canal = Object.keys(r)[0];
+    $('#m-sim').innerHTML = simBloco(r, simEstado.qtd, simEstado.canal, { preco: precos[simEstado.canal], semCusto: !custo });
+    ligarSim('#m-sim', st => { ls.set('radar_sim', { qtd: st.qtd, canal: st.canal }); if (st.preco != null) precos[st.canal] = st.preco; calc(); });
     // 🎯 meta do mês
     const metaV = ler('#m-meta');
     if (custo && metaV) {
@@ -673,6 +679,62 @@ function rankingLote() {
   const ok = loteRes.filter(x => !x.erro).sort((a, b) => b.nota - a.nota), ruins = loteRes.filter(x => x.erro);
   return '<h2>🏁 Ranking</h2>' + barrasH(ok.map(x => ({ rotulo: x.termo, valor: x.nota, termo: x.termo, cor: 'var(--brand)', dica: '<b>' + esc(x.termo) + '</b><br>Nota ' + x.nota + ' · ' + brl(x.precoMediano) })), { max: 100 }) +
     (ok.length ? tabelaPesquisas(ok) : '') + (ruins.length ? '<p class="small muted">Não deu: ' + ruins.map(x => esc(x.termo) + ' (' + esc(x.erro) + ')').join(' · ') + '</p>' : '');
+}
+
+// ───────────────────────── 💵 SIMULADOR DE FATURAMENTO ─────────────────────────
+// "Se eu vender X unidades a R$ Y, quanto entra e quanto sobra?" Em números grandes.
+function simBloco(r, qtd, canal, op) {
+  op = op || {};
+  const q = Math.max(0, Number(qtd) || 0), u = r[canal] || {}, nomeC = id => (r[id] && r[id].nome) || (CANAIS[canalDaTaxa(id)] || {}).nome || id;
+  const tot = k => (Number(u[k]) || 0) * q;
+  const fat = tot('preco'), taxas = tot('comissao') + tot('fixo') + tot('frete'), imp = tot('imposto'), cus = tot('custo'), lucro = tot('lucro');
+  const big = (rot, val, cls, sub, tip) => '<div class="big ' + (cls || '') + '"><div class="big-l">' + rot + (tip ? ' <button type="button" class="ajuda" data-txt="' + esc(tip) + '">?</button>' : '') + '</div><div class="big-v">' + val + '</div>' + (sub ? '<div class="big-s">' + sub + '</div>' : '') + '</div>';
+  const pq = n => (fat ? ' · ' + pct(n / fat * 100) : '');
+  return '<div class="sim">' +
+    '<h2>💵 Simulador: quanto vou ter? <button type="button" class="ajuda" data-txt="Digite quantas unidades pretende vender e o preço. O Radar tira a comissão, a taxa fixa, o frete, o imposto e o seu custo de cada venda e mostra o que entra e o que sobra no bolso.">?</button></h2>' +
+    '<div class="sim-entradas"><label>Se eu vender<span class="sim-in"><input type="number" min="0" step="1" data-sim="qtd" value="' + q + '"> unidades</span></label>' +
+      '<label>no<select data-sim="canal">' + Object.keys(r).map(id => '<option value="' + id + '"' + (id === canal ? ' selected' : '') + '>' + esc(nomeC(id)) + '</option>').join('') + '</select></label>' +
+      '<label>a<span class="sim-in">R$ <input type="number" min="0" step="0.01" data-sim="preco" value="' + (op.preco != null ? op.preco : (u.preco || '')) + '"> cada</span></label>' +
+      (op.extra || '') + '</div>' +
+    '<div class="chips" style="margin:8px 0 14px">' + [10, 50, 100, 300, 500, 1000].map(n => '<button type="button" class="chip' + (n === q ? ' on' : '') + '" data-sim-q="' + n + '">' + num(n) + ' un.</button>').join('') + '</div>' +
+    '<div class="bigs">' +
+      big('Faturamento', brl0(fat), '', num(q) + ' × ' + brl(u.preco), 'Tudo o que o comprador paga: unidades × preço. Ainda não é seu, as taxas saem daqui.') +
+      big('Taxas do marketplace', '− ' + brl0(taxas), 'neg', 'comissão + taxa fixa + frete' + pq(taxas), 'Comissão, taxa fixa por unidade e o frete grátis que você banca. É o que o marketplace fica.') +
+      big('Imposto', '− ' + brl0(imp), 'neg', pct(cfg().imposto) + ' sobre a venda', 'Imposto sobre a venda (ajuste a porcentagem em Taxas).') +
+      big('Custo de produção', '− ' + brl0(cus), 'neg', op.semCusto ? '⚠️ coloque o custo acima' : brl(u.custo) + ' por unidade', 'Custo de produção + embalagem, vezes as unidades.') +
+      big('Lucro no bolso', brl0(lucro), lucro >= 0 ? 'lucro' : 'prejuizo', (u.margem != null ? 'margem ' + pct(u.margem) + ' · ' : '') + brl(u.lucro) + ' por unidade', 'O que sobra depois de tudo. É o dinheiro que é seu de verdade.') +
+    '</div>' +
+    '<div class="sim-ano">Em 12 meses nesse ritmo: <b>' + brl0(fat * 12) + '</b> de faturamento e <b class="' + (lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl0(lucro * 12) + '</b> de lucro.</div>' +
+    '<div class="tabela-wrap"><table class="sim-comp"><thead><tr><th>Mesmas ' + num(q) + ' unidades no…</th><th class="num">Preço</th><th class="num">Faturamento</th><th class="num">Lucro no bolso</th></tr></thead><tbody>' +
+      Object.entries(r).sort((a, b) => b[1].lucro - a[1].lucro).map(([id, x]) => '<tr' + (id === canal ? ' class="sim-sel"' : '') + '><td>' + logo(canalDaTaxa(id)) + ' ' + esc(nomeC(id)) + '</td><td class="num">' + brl(x.preco) + '</td><td class="num">' + brl0(x.preco * q) + '</td><td class="num ' + (x.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '"><b>' + brl0(x.lucro * q) + '</b></td></tr>').join('') +
+    '</tbody></table></div></div>';
+}
+function ligarSim(raiz, mudou) {
+  const box = $(raiz), val = k => box.querySelector('[data-sim="' + k + '"]');
+  const ler = precoMudou => ({ qtd: Number(val('qtd').value) || 0, canal: val('canal').value, preco: precoMudou ? (Number(val('preco').value) || 0) : null });
+  val('qtd').onchange = () => mudou(ler(false));
+  val('canal').onchange = () => mudou(ler(false));
+  val('preco').onchange = () => mudou(ler(true));
+  box.querySelectorAll('[data-sim-q]').forEach(b => b.onclick = () => { val('qtd').value = b.dataset.simQ; mudou(ler(false)); });
+  box.querySelectorAll('[data-sim-extra]').forEach(i => i.onchange = () => mudou(ler(false)));
+}
+// aba própria: sem precisar pesquisar nada
+function pintarSimulador() {
+  const box = $('#aba-simulador'), c = cfg(), st = ls.get('radar_sim_livre', { qtd: 10, canal: 'mercadolivre', preco: 10, custo: 0, emb: 0 });
+  box.innerHTML = '<h1 class="titulo-aba">Simulador de faturamento</h1><p class="sub-aba">Coloque quantas unidades, o preço e o seu custo: o Radar mostra o faturamento e o que sobra no bolso em cada canal, já tirando comissão, taxa fixa, frete e imposto.</p><div class="card" style="margin-top:14px" id="sim-livre"></div>';
+  function desenhar() {
+    const r = {};
+    Object.entries(c.taxas).forEach(([id, t]) => { r[id] = { nome: t.nome, ...Margem.calcularCanal(id === st.canal ? st.preco : st.preco, st.custo, st.emb, c.imposto, t) }; });
+    $('#sim-livre').innerHTML = simBloco(r, st.qtd, r[st.canal] ? st.canal : Object.keys(r)[0], { preco: st.preco, semCusto: !st.custo,
+      extra: '<label>custo de produção<span class="sim-in">R$ <input type="number" min="0" step="0.01" data-sim-extra="custo" value="' + (st.custo || '') + '" placeholder="0,00"></span></label><label>embalagem<span class="sim-in">R$ <input type="number" min="0" step="0.01" data-sim-extra="emb" value="' + (st.emb || '') + '" placeholder="0,00"></span></label>' }) +
+      '<p class="aviso">O frete usa o valor de referência de cada canal (sem peso). Para o frete pelo peso e a comissão oficial da categoria, use o simulador dentro de uma pesquisa, no card "Vale a pena?".</p>';
+    ligarSim('#sim-livre', x => {
+      st.qtd = x.qtd; st.canal = x.canal; if (x.preco != null) st.preco = x.preco;
+      st.custo = Number($('[data-sim-extra="custo"]').value) || 0; st.emb = Number($('[data-sim-extra="emb"]').value) || 0;
+      ls.set('radar_sim_livre', st); desenhar();
+    });
+  }
+  desenhar();
 }
 
 // ───────────────────────── ⚙️ TAXAS ─────────────────────────
@@ -1023,6 +1085,7 @@ const AJUDA = [
   ['anúncios encontrados por canal', 'Soma dos anúncios encontrados em todas as pesquisas, por marketplace.'],
   ['todas as pesquisas', 'A lista completa. Toque numa linha para abrir a pesquisa salva (não gasta crédito).'],
   // outras abas
+  ['simulador de faturamento', 'Conta rápida: se eu vender X unidades a R$ Y, quanto entra e quanto sobra no bolso em cada canal.'],
   ['catálogo da fábrica', 'Seus produtos e variações (largura, comprimento...). Com custo e peso de cada variação, o Radar mostra quais dão mais lucro e o melhor canal de cada uma.'],
   ['ranking de lucro', 'As variações do catálogo ordenadas pelo lucro por unidade no melhor canal de cada uma.'],
   ['pesquisa em lote', 'Pesquisa até 20 palavras de uma vez e mostra o ranking. Bom para comparar variações e ideias.'],
@@ -1150,5 +1213,5 @@ new MutationObserver(() => ['#card-onde', '#card-preco'].forEach(sel => { const 
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
 function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha'].includes(aba0)) irPara(aba0); else primeiraVez(); }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador'].includes(aba0)) irPara(aba0); else primeiraVez(); }
 })();
