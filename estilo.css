@@ -1,26 +1,35 @@
 :root{
   color-scheme: light;
-  --bg:#f3f5fa; --card:#ffffff; --card-2:#f7f8fc; --ink:#141a2e; --ink-2:#4a5268; --muted:#6b7389; --line:#e3e7f0;
-  --brand:#4f46e5; --brand-2:#6d66f0; --brand-soft:#eceeff; --side:#121733; --side-ink:#c9cdf0;
-  --ok:#12a150; --warn:#c98500; --bad:#d92d20;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+  --bg:#F2F4F7; --card:#ffffff; --card-2:#F5F6FA; --ink:#0D1330; --ink-2:#475069; --muted:#8a94a8; --line:#E4E7EF;
+  --brand:#FF6A00; --brand-2:#FF8A33; --brand-soft:rgba(255,106,0,.08); --azul:#165DFF; --azul-soft:rgba(22,93,255,.10);
+  --pri:#0D1330; --pri-ink:#ffffff; --pri-sombra:0 4px 16px rgba(13,19,48,.25);
+  --side:#ffffff; --side-ink:#6b7280; --side-linha:#E8EAEF; --side-hover:rgba(255,106,0,.05); --side-marca:#0D1330;
+  --pontos:rgba(255,106,0,.06);
+  --ok:#16a34a; --warn:#d97706; --bad:#dc2626;
+  --s1:#165DFF; --s2:#FF6A00; --s3:#16a34a;
   --ml:#ffe600; --ml-ink:#2d3277; --sp:#ee4d2d; --amz:#ff9900; --amz-ink:#131921;
-  --shadow:0 1px 2px rgba(16,24,40,.05),0 2px 8px rgba(16,24,40,.06);
+  --shadow:0 1px 2px rgba(13,19,48,.04),0 4px 14px rgba(13,19,48,.06);
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   color-scheme: dark;
-  --bg:#0c1020; --card:#151a2d; --card-2:#1b2138; --ink:#e8ebf5; --ink-2:#c3c8da; --muted:#98a0b8; --line:#262e48;
-  --brand:#8b85ff; --brand-2:#a39eff; --brand-soft:#232a4a; --side:#0a0d1c; --side-ink:#b9bfe6;
-  --ok:#2bb46a; --warn:#e0a020; --bad:#ef5a4f; --s1:#3987e5; --s2:#d95926; --s3:#199e70; --shadow:none;
+  --bg:#0A0F1F; --card:#111832; --card-2:#172042; --ink:#E9EDF8; --ink-2:#B9C1DA; --muted:#8892B0; --line:#232D52;
+  --brand:#FF7A1A; --brand-2:#FF9A4D; --brand-soft:rgba(255,122,26,.13); --azul:#4C83FF; --azul-soft:rgba(76,131,255,.15);
+  --pri:#FF6A00; --pri-ink:#ffffff; --pri-sombra:0 4px 16px rgba(255,106,0,.25);
+  --side:#0D1330; --side-ink:#A9B2CF; --side-linha:#1E2747; --side-hover:rgba(255,122,26,.08); --side-marca:#ffffff;
+  --pontos:rgba(255,122,26,.07);
+  --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --s1:#4C83FF; --s2:#FF7A1A; --s3:#22c55e; --shadow:none;
 }}
 :root[data-theme="dark"]{
   color-scheme: dark;
-  --bg:#0c1020; --card:#151a2d; --card-2:#1b2138; --ink:#e8ebf5; --ink-2:#c3c8da; --muted:#98a0b8; --line:#262e48;
-  --brand:#8b85ff; --brand-2:#a39eff; --brand-soft:#232a4a; --side:#0a0d1c; --side-ink:#b9bfe6;
-  --ok:#2bb46a; --warn:#e0a020; --bad:#ef5a4f; --s1:#3987e5; --s2:#d95926; --s3:#199e70; --shadow:none;
+  --bg:#0A0F1F; --card:#111832; --card-2:#172042; --ink:#E9EDF8; --ink-2:#B9C1DA; --muted:#8892B0; --line:#232D52;
+  --brand:#FF7A1A; --brand-2:#FF9A4D; --brand-soft:rgba(255,122,26,.13); --azul:#4C83FF; --azul-soft:rgba(76,131,255,.15);
+  --pri:#FF6A00; --pri-ink:#ffffff; --pri-sombra:0 4px 16px rgba(255,106,0,.25);
+  --side:#0D1330; --side-ink:#A9B2CF; --side-linha:#1E2747; --side-hover:rgba(255,122,26,.08); --side-marca:#ffffff;
+  --pontos:rgba(255,122,26,.07);
+  --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --s1:#4C83FF; --s2:#FF7A1A; --s3:#22c55e; --shadow:none;
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 a{color:var(--brand);text-decoration:none} a:hover{text-decoration:underline}
 .hidden{display:none!important}
 .muted{color:var(--muted)} .small{font-size:.82rem}
@@ -541,3 +550,52 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .hp.pos{background:rgba(31,157,85,.12);color:#1a7f47}
 .hp.neg{background:rgba(214,69,69,.12);color:#b83232}
 @media (max-width:640px){.hype-nums,.hype-pontos{margin-left:0}}
+
+/* ═════════ 🎨 Visual do Prospecta+ (claro e escuro) ═════════ */
+body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(circle,var(--pontos) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;z-index:0}
+.app,.login{position:relative;z-index:1}
+button.pri{background:var(--pri);border-color:var(--pri);color:var(--pri-ink);font-weight:800;box-shadow:var(--pri-sombra)}
+button.pri:hover{filter:brightness(1.08)}
+button.sec{background:var(--brand-soft);color:var(--brand);border-color:transparent;font-weight:700}
+input:focus,textarea:focus,select:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.card{border-radius:14px;border:1.5px solid var(--line)}
+.titulo-aba{font-weight:800;letter-spacing:-.02em}
+/* menu lateral no estilo do Prospecta: branco (claro) ou marinho (escuro), item ativo laranja com barrinha em degradê */
+.lado{background:var(--side);color:var(--side-ink);border-right:1px solid var(--side-linha)}
+.lado .marca{color:var(--side-marca);padding:4px 6px 14px;border-bottom:1px solid var(--side-linha)}
+.lado .marca div{font-size:1.35rem;font-weight:800;letter-spacing:-.04em;line-height:1}
+.lado .marca div::first-letter{color:#FF6A00}
+.lado .marca span{display:table;margin-top:6px;font-size:.6rem;font-weight:700;letter-spacing:.3px;color:#fff;opacity:1;padding:2px 8px;border-radius:4px;background:linear-gradient(135deg,#FF6A00,#165DFF)}
+.nav-grupo{color:var(--muted);opacity:1;font-size:.6rem;letter-spacing:.06em}
+#nav button{color:var(--side-ink);font-weight:500;border:1px solid transparent;position:relative}
+#nav button:hover{background:var(--side-hover);color:var(--brand);border-color:rgba(255,106,0,.12)}
+#nav button.ativo{background:var(--brand-soft);color:var(--brand);border-color:rgba(255,106,0,.18);font-weight:700}
+#nav button.ativo::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:3px;border-radius:99px;background:linear-gradient(180deg,#FF6A00,#165DFF)}
+.lado-rodape{border-top:1px solid var(--side-linha)}
+.rod-status{color:var(--side-ink)}
+.rod-botoes button{background:var(--card-2);border:1px solid var(--side-linha);color:var(--ink-2)}
+.rod-botoes button:hover{background:var(--side-hover);color:var(--brand)}
+.selo{background:var(--brand-soft);color:var(--brand)}
+.selo.ok{background:#16a34a;color:#fff}
+/* barra do topo como a do Prospecta */
+.conteudo{position:relative;z-index:1}
+.topo{background:var(--card);border-bottom:1px solid var(--side-linha);margin:0 -24px 6px;padding:12px 24px}
+.sec-abas{top:70px}
+.sec-abas button.on{background:linear-gradient(135deg,#FF6A00,#FF8A33);color:#fff}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.kpi,.big,.resp{border-radius:14px}
+.resp-passo{background:var(--azul-soft)}
+.bf-data{background:linear-gradient(135deg,#0D1330,#1e2a6b);color:#fff}
+#abrir-menu{border-color:var(--side-linha)}
+@media (max-width:860px){
+  .topo{margin:0 -16px 6px;padding:10px 16px calc(10px) 16px;padding-top:calc(10px + env(safe-area-inset-top))}
+  .sec-abas{top:116px}
+  .lado{border-right:1px solid var(--side-linha)}
+}
+@media (max-width:860px){
+  .lado .marca{padding-bottom:10px}
+  .lado .marca div{font-size:1.15rem}
+  .lado .marca span{margin-top:4px}
+  #nav button,#nav button[data-aba]:not([data-mob]){padding:7px 12px}
+  .nav-grupo{padding-top:6px}
+}
