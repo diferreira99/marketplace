@@ -1065,16 +1065,33 @@ async function compararAgora() {
 let BFp = null;   // plano em edição
 async function pintarBlackFriday() {
   const box = $('#aba-blackfriday');
-  if (!BFp) { try { const r = await api('/api/catalogo?bf=1'); BFp = r && r.variacoes ? r : null; } catch (e) { BFp = null; } }
-  if (!BFp) BFp = { url: 'https://decoraloja.com.br/produtos/fita-de-eva-para-espelho-autocolante/', nome: '', variacoes: [], canal: 'site', taxaSite: 5, fretePedido: 0, embalagem: 1, margemMin: 15, vendasMes: 0, custoMetro: {} };
+  if (!BFp) { try { const r = await api('/api/catalogo?bf=1'); BFp = r && (r.variacoes || r.concorrente) ? r : null; } catch (e) { BFp = null; } }
+  if (!BFp) BFp = { url: '', nome: '', variacoes: [], canal: 'site', taxaSite: 5, fretePedido: 0, embalagem: 1, margemMin: 15, desconto: 20, vendasMes: 0, custoMetro: {}, concorrente: null };
+  // plano antigo em que o produto importado era o do concorrente (Decora Loja): vira referência
+  if (!BFp.concorrente && /decoraloja\.com\.br/.test(BFp.url || '')) {
+    BFp.concorrente = { url: BFp.url, nome: BFp.nome, variacoes: (BFp.variacoes || []).map(v => ({ ...v, custo: 0 })) };
+    BFp.url = ''; BFp.nome = ''; BFp.variacoes = []; BFp.custoMetro = {};
+  }
+  BFp.variacoes = BFp.variacoes || []; BFp.custoMetro = BFp.custoMetro || {};
+  let cat = []; try { cat = (await api('/api/catalogo')).produtos || []; } catch (e) { cat = []; }
   const datas = Calendario.proximas(new Date(), 6).filter(x => /11\.11|Black Friday|Cyber/.test(x.nome));
   const c = cfg();
   const canais = [['site', 'Site próprio (sua loja)']].concat(Object.entries(c.taxas).map(([id, t]) => [id, t.nome]));
-  box.innerHTML = '<h1 class="titulo-aba">Black Friday</h1><p class="sub-aba">Até quanto dá para baixar o preço sem prejuízo, qual oferta anunciar e quanto produzir. Importe o produto pelo link da sua loja.</p>' +
+  box.innerHTML = '<h1 class="titulo-aba">Black Friday</h1><p class="sub-aba">Até quanto dá para baixar o preço sem prejuízo, qual oferta anunciar, quanto produzir e como você fica contra o concorrente.</p>' +
     '<div class="bf-datas">' + datas.map(x => '<div class="bf-data"><b>' + esc(x.nome.replace(' (Shopee e Mercado Livre)', '')) + '</b><span>' + (x.dias <= 0 ? 'é hoje' : 'em ' + x.dias + ' dia' + (x.dias > 1 ? 's' : '')) + '</span><small>' + new Date(x.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + '</small></div>').join('') + '</div>' +
-    '<div class="card" style="margin-top:14px"><h2>1. Seu produto</h2><div class="bf-url"><input id="bf-url" type="url" placeholder="https://sua-loja.com.br/produtos/..." value="' + esc(BFp.url || '') + '"><button type="button" class="pri" id="bf-importar">Importar</button></div>' +
-      '<div class="small muted" id="bf-prod">' + (BFp.variacoes.length ? '✅ <b>' + esc(BFp.nome) + '</b> · ' + BFp.variacoes.length + ' variações importadas' : 'Cole o link da página do produto e toque em Importar.') + '</div></div>' +
-    '<div class="card" style="margin-top:14px"><h2>2. Seus números <span class="tag">ficam salvos para o time</span></h2><div class="bf-campos">' +
+    '<div class="card" style="margin-top:14px"><h2>1. Seu produto</h2>' +
+      '<div class="bf-fontes">' +
+        '<div><b class="small">Do seu catálogo</b><div class="bf-url"><select id="bf-cat"><option value="">' + (cat.length ? '— escolha o produto —' : 'catálogo vazio') + '</option>' + cat.map(p => '<option value="' + esc(p.id) + '">' + esc(p.nome) + ' (' + p.variacoes.length + ')</option>').join('') + '</select><button type="button" class="sec" id="bf-usar-cat"' + (cat.length ? '' : ' disabled') + '>Usar</button></div></div>' +
+        '<div><b class="small">Pelo link da sua loja</b><div class="bf-url"><input id="bf-url" type="url" placeholder="https://sua-loja.com.br/produtos/..." value="' + esc(BFp.url || '') + '"><button type="button" class="sec" id="bf-importar">Importar</button></div></div>' +
+      '</div>' +
+      '<div class="small" id="bf-prod" style="margin-top:10px">' + resumoProdBF() + '</div>' +
+      '<details class="bf-manual"><summary class="small">+ digitar uma variação à mão</summary><div class="bf-campos" style="margin-top:8px">' +
+        '<label>Nome (ex.: 19 mm · 3 m)<input id="bfm-rot"></label><label>Metros no pacote<input id="bfm-met" type="number" step="0.5" min="0"></label><label>Seu preço hoje (R$)<input id="bfm-pre" type="number" step="0.01" min="0"></label><label>Seu custo (R$)<input id="bfm-cus" type="number" step="0.01" min="0"></label>' +
+        '</div><button type="button" class="sec" id="bfm-add" style="margin-top:8px">Adicionar</button></details></div>' +
+    '<div class="card" style="margin-top:14px"><h2>2. Concorrente (referência) <span class="tag">só para comparar, não entra no seu plano</span></h2>' +
+      '<div class="bf-url"><input id="bf-conc-url" type="url" placeholder="https://loja-do-concorrente.com.br/produtos/..." value="' + esc((BFp.concorrente && BFp.concorrente.url) || '') + '"><button type="button" class="sec" id="bf-conc-imp">Importar</button></div>' +
+      '<div id="bf-conc" style="margin-top:10px"></div></div>' +
+    '<div class="card" style="margin-top:14px"><h2>3. Seus números <span class="tag">ficam salvos para o time</span></h2><div class="bf-campos">' +
       '<label>Onde vai vender<select id="bf-canal">' + canais.map(([id, n]) => '<option value="' + id + '"' + (id === BFp.canal ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></label>' +
       '<label class="bf-site">Taxa de pagamento do site (%)<input type="number" step="0.1" min="0" id="bf-taxa" value="' + BFp.taxaSite + '"></label>' +
       '<label class="bf-site">Frete que você paga por pedido (R$)<input type="number" step="0.5" min="0" id="bf-frete" value="' + BFp.fretePedido + '"></label>' +
@@ -1097,23 +1114,67 @@ async function pintarBlackFriday() {
   };
   $$('#bf-canal, #bf-taxa, #bf-frete, #bf-emb, #bf-margem, #bf-vendas, #bf-desc').forEach(i => i.oninput = () => { ler(); desenharBF(); });
   $('#bf-canal').onchange = () => { ler(); desenharBF(); };
+  const trocouProduto = () => { $('#bf-prod').innerHTML = resumoProdBF(); desenharCustosBF(); desenharBF(); };
+  $('#bf-usar-cat').onclick = () => {
+    const p = cat.find(x => x.id === $('#bf-cat').value); if (!p) return;
+    BFp.url = ''; BFp.nome = p.nome; BFp.custoMetro = {};
+    BFp.variacoes = p.variacoes.map(v => ({ rotulo: v.rotulo || 'Única', opcoes: [v.rotulo || ''], sku: v.sku || '', preco: v.preco || 0, precoDe: null, metros: metrosDoTexto(v.rotulo), custo: (v.custo || 0) + 0 }));
+    trocouProduto();
+    if (BFp.variacoes.some(v => !v.preco)) avisoRapido('Algumas variações estão sem preço no catálogo: coloque o seu preço na tabela abaixo.');
+  };
   $('#bf-importar').onclick = async () => {
-    const bt = $('#bf-importar'); bt.disabled = true; bt.textContent = 'Lendo a página…';
+    const bt = $('#bf-importar'); bt.disabled = true; bt.textContent = 'Lendo…';
     try {
       const r = await api('/api/catalogo', { method: 'POST', body: JSON.stringify({ acao: 'importar-url', url: $('#bf-url').value.trim() }) });
       const antes = Object.fromEntries((BFp.variacoes || []).map(v => [v.sku || v.rotulo, v.custo]));
       BFp.url = r.url; BFp.nome = r.nome; BFp.variacoes = r.variacoes.map(v => ({ ...v, custo: antes[v.sku || v.rotulo] || 0 }));
-      $('#bf-prod').innerHTML = '✅ <b>' + esc(r.nome) + '</b> · ' + r.variacoes.length + ' variações importadas'; desenharCustosBF(); desenharBF();
+      trocouProduto();
     } catch (e) { $('#bf-prod').innerHTML = '⚠️ ' + esc(e.message); }
     bt.disabled = false; bt.textContent = 'Importar';
   };
-  ler(); desenharCustosBF(); desenharBF();
+  $('#bfm-add').onclick = () => {
+    const rot = $('#bfm-rot').value.trim(), pre = Number($('#bfm-pre').value) || 0;
+    if (!rot || !pre) return avisoRapido('Coloque pelo menos o nome e o seu preço.');
+    if (!BFp.url && !BFp.nome) BFp.nome = 'Meu produto';
+    BFp.variacoes.push({ rotulo: rot, opcoes: [rot], sku: '', preco: pre, precoDe: null, metros: Number($('#bfm-met').value) || metrosDoTexto(rot), custo: Number($('#bfm-cus').value) || 0 });
+    ['#bfm-rot', '#bfm-met', '#bfm-pre', '#bfm-cus'].forEach(id => { $(id).value = ''; });
+    trocouProduto();
+  };
+  $('#bf-conc-imp').onclick = async () => {
+    const bt = $('#bf-conc-imp'); bt.disabled = true; bt.textContent = 'Lendo…';
+    try { const r = await api('/api/catalogo', { method: 'POST', body: JSON.stringify({ acao: 'importar-url', url: $('#bf-conc-url').value.trim() }) }); BFp.concorrente = { url: r.url, nome: r.nome, variacoes: r.variacoes }; desenharConcBF(); desenharBF(); }
+    catch (e) { $('#bf-conc').innerHTML = '<div class="small">⚠️ ' + esc(e.message) + '</div>'; }
+    bt.disabled = false; bt.textContent = 'Importar';
+  };
+  ler(); desenharConcBF(); desenharCustosBF(); desenharBF();
+}
+function metrosDoTexto(t) { const m = String(t || '').match(/(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?\b)/i); return m ? Number(m[1].replace(',', '.')) : null; }
+function resumoProdBF() {
+  return BFp.variacoes.length ? '✅ <b>' + esc(BFp.nome || 'Seu produto') + '</b> · ' + BFp.variacoes.length + ' variações' + (BFp.url ? ' · <span class="muted">' + esc(BFp.url.replace(/^https:\/\//, '').slice(0, 60)) + '</span>' : '')
+    : '<span class="muted">Escolha o produto do seu catálogo, importe pelo link da sua loja ou digite as variações.</span>';
+}
+// 🆚 Concorrente: preço por metro de cada medida e a tática de preço dele
+function desenharConcBF() {
+  const box = $('#bf-conc'), k = BFp.concorrente; if (!box) return;
+  if (!k || !k.variacoes || !k.variacoes.length) { box.innerHTML = '<div class="small muted">Cole o link do produto de um concorrente para comparar o preço por metro com a sua oferta.</div>'; return; }
+  const grupos = {};
+  k.variacoes.filter(v => v.metros).forEach(v => { const g = medidaBF(v); (grupos[g] = grupos[g] || []).push(v.preco / v.metros); });
+  const riscado = k.variacoes.filter(v => v.precoDe && v.precoDe / v.preco >= 1.5);
+  box.innerHTML = '<div class="small">🆚 <b>' + esc(k.nome) + '</b> · ' + k.variacoes.length + ' variações</div>' +
+    (Object.keys(grupos).length ? '<div class="chips" style="margin:8px 0">' + Object.entries(grupos).map(([g, ms]) => '<span class="chip">' + esc(g) + ': ' + brl(Math.min(...ms)) + ' a ' + brl(Math.max(...ms)) + ' por metro</span>').join('') + '</div>' : '') +
+    (riscado.length ? '<p class="small" style="margin:4px 0">📌 Ele mostra um preço "de" uns <b>' + Math.round(riscado[0].precoDe / riscado[0].preco * 100 - 100) + '% acima</b> do preço de venda o ano todo ("' + Math.round((1 - riscado[0].preco / riscado[0].precoDe) * 100) + '% off" permanente). Na Black Friday ele deve anunciar descontos grandes em cima desse "de". Seu contra-ataque: mostrar o <b>preço por metro real</b>, que é o que o profissional compara.</p>' : '');
 }
 // grupos de custo: se as variações têm metros (ex.: rolos), o custo sai do custo por metro de cada medida
 function gruposBF() {
   const g = {};
-  BFp.variacoes.forEach(v => { if (!v.metros) return; const k = (v.opcoes || []).filter(o => !ehMetragem(o)).join(' · ') || 'padrão'; (g[k] = g[k] || []).push(v); });
+  BFp.variacoes.forEach(v => { if (!v.metros) return; const k = medidaBF(v); (g[k] = g[k] || []).push(v); });
   return g;
+}
+// medida sem a metragem: "3MTS · 15mmx15mm" -> "15mmx15mm"; "19 mm · 3 m" -> "19 mm"
+function medidaBF(v) {
+  const sem = t => String(t || '').replace(/(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?\b)/ig, '').replace(/^[\s·|,-]+|[\s·|,-]+$/g, '').replace(/\s*[·|]\s*[·|]\s*/g, ' · ').trim();
+  const op = (v.opcoes || []).filter(o => !ehMetragem(o));
+  return (op.length ? op.join(' · ') : sem(v.rotulo)) || 'padrão';
 }
 function ehMetragem(o) { return /(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?\b)/i.test(o); }
 function desenharCustosBF() {
@@ -1140,7 +1201,7 @@ function desenharBF() {
   const c = cfg(), taxa = taxaBF();
   const dEsc = BFp.desconto != null ? BFp.desconto : 20;
   const linhas = BFp.variacoes.map(v => {
-    const p = BlackFriday.planoLinha({ preco: v.preco, custo: v.custo, embalagem: BFp.embalagem, imposto: c.imposto, taxa, margemMin: BFp.margemMin });
+    const p = BlackFriday.planoLinha({ preco: v.preco || 0, custo: v.preco ? v.custo : 0, embalagem: BFp.embalagem, imposto: c.imposto, taxa, margemMin: BFp.margemMin });
     if (!p.semCusto) {   // a oferta é o desconto que você escolheu
       p.precoOferta = dEsc ? BlackFriday.precoBonito(v.preco * (1 - dEsc / 100)) : v.preco;
       p.oferta = Margem.calcularCanal(p.precoOferta, v.custo, BFp.embalagem, c.imposto, taxa);
@@ -1153,12 +1214,28 @@ function desenharBF() {
   const seguro = comCusto.length ? Math.min(...comCusto.map(l => l.p.comMargem == null ? 0 : l.p.comMargem)) : null;
   const redondo = seguro != null ? BlackFriday.DESCONTOS.find(x => x <= seguro) || 0 : null;
   const porMetro = BFp.variacoes.filter(v => v.metros).map(v => ({ v, m: v.preco / v.metros }));
-  const pm = porMetro.length >= 2 ? [porMetro.reduce((a, b) => (b.m > a.m ? b : a)), porMetro.reduce((a, b) => (b.m < a.m ? b : a))] : null;
+  // dentro da mesma medida, a maior diferença de preço por metro entre o pacote pequeno e o grande
+  const porMedida = {}; porMetro.forEach(x => { (porMedida[medidaBF(x.v)] = porMedida[medidaBF(x.v)] || []).push(x); });
+  const pm = Object.values(porMedida).filter(l => l.length >= 2).map(l => [l.reduce((a, b) => (b.m > a.m ? b : a)), l.reduce((a, b) => (b.m < a.m ? b : a))])
+    .sort((a, b) => (b[0].m / b[1].m) - (a[0].m / a[1].m))[0] || null;
   const riscado = BFp.variacoes.filter(v => v.precoDe && v.precoDe / v.preco >= 1.5);
   const bf = Calendario.proximas(new Date(), 6).find(x => x.nome === 'Black Friday');
   const extraBF = BFp.vendasMes && bf ? Calendario.extra(BFp.vendasMes, bf.fator) : 0;
   const prejuizoHoje = comCusto.filter(l => l.p.hoje.lucro < 0);
-  box.innerHTML = '<div class="card"><h2>3. Plano de Black Friday <span class="tag">' + esc(taxa.nome) + '</span></h2>' +
+  // concorrente: menor preço por metro com a mesma metragem (ou a mais próxima)
+  const kv = (BFp.concorrente && BFp.concorrente.variacoes || []).filter(x => x.metros && x.preco);
+  const mmDe = t => (String(t).match(/(\d+)\s*mm/i) || [])[1];
+  const concDe = v => {
+    if (!kv.length || !v.metros) return null;
+    const mm = mmDe(medidaBF(v)), mesmaMedida = mm ? kv.filter(x => (medidaBF(x).match(/\d+/g) || []).includes(mm)) : [];
+    const base = mesmaMedida.length ? mesmaMedida : kv;
+    const mais = base.reduce((a, b) => Math.abs(b.metros - v.metros) < Math.abs(a.metros - v.metros) ? b : a).metros;
+    const m = Math.min(...base.filter(x => x.metros === mais).map(x => x.preco / x.metros));
+    return { m, metros: mais, medida: mesmaMedida.length ? null : 'outra medida' };
+  };
+  const vsConc = linhas.map(({ v, p }) => { const k = concDe(v); if (!k) return null; const meu = (p.precoOferta || v.preco) / v.metros; return { k, meu, ganha: meu <= k.m, dif: Math.round((meu / k.m - 1) * 100) }; });
+  const comp = vsConc.filter(Boolean);
+  box.innerHTML = '<div class="card"><h2>4. Plano de Black Friday <span class="tag">' + esc(taxa.nome) + '</span></h2>' +
     (!comCusto.length ? '<div class="vazio">Coloque o seu custo (por metro ou por variação) para ver até quanto dá para baixar o preço.</div>' :
       '<div class="cli-resumo">' +
         (() => { const ok = comCusto.filter(l => l.p.status === 'ok').length, ruim = comCusto.length - ok;
@@ -1168,14 +1245,16 @@ function desenharBF() {
             ' O lucro médio por pedido vai de ' + brl(lH) + ' para ' + brl(lO) + (emp != null ? ': precisa vender <b>' + emp + '% a mais</b> para lucrar o mesmo total.' : '.') + '<br>'; })() +
         (redondo ? '🛍️ Desconto máximo que cabe em todas mantendo ' + BFp.margemMin + '% de margem: <b>' + redondo + '%</b>. ' : '') +
         (pm && pm[0].v !== pm[1].v ? ' <br>💡 O metro sai <b>' + brl(pm[0].m) + '</b> no ' + esc(pm[0].v.rotulo) + ' e <b>' + brl(pm[1].m) + '</b> no ' + esc(pm[1].v.rotulo) + ': destaque os pacotes maiores ("leve mais, pague menos por metro") em vez de dar desconto grande no pacote pequeno.' : '') +
+        (comp.length ? ' <br>🆚 Contra o concorrente, com ' + dEsc + '% off você fica <b>mais barato por metro em ' + comp.filter(x => x.ganha).length + ' de ' + comp.length + '</b> variações' + (comp.some(x => !x.ganha) ? ' (nas outras, destaque qualidade, prazo e atendimento em vez de brigar por preço)' : '') + '.' : '') +
         (extraBF ? ' <br>🏭 Produza cerca de <b>+' + num(extraBF) + ' pedidos</b> a mais para a semana da Black Friday' + (bf ? ' (' + (bf.atrasado ? 'comece já' : 'até ' + dataBR(bf.produzirAte)) + ')' : '') + '.' : '') +
       '</div>') +
     (prejuizoHoje.length ? '<p class="var-neg small">⚠️ ' + prejuizoHoje.length + ' variação(ões) já dão prejuízo no preço de hoje neste canal: ' + prejuizoHoje.slice(0, 3).map(l => esc(l.v.rotulo)).join(', ') + '.</p>' : '') +
-    '<div class="tabela-wrap"><table class="bf-tab"><thead><tr><th>Variação</th><th class="num">Preço hoje</th>' + (porMetro.length ? '<th class="num">R$ / metro</th>' : '') + '<th class="num">Seu custo</th><th class="num">Lucro hoje</th><th class="num">Desconto máx. sem prejuízo</th><th class="num">Desconto máx. c/ ' + BFp.margemMin + '% margem</th><th class="num">Preço com ' + dEsc + '% off</th><th class="num">Lucro na oferta</th><th class="num">Vender a mais p/ empatar</th></tr></thead><tbody>' +
-    linhas.map(({ v, p }, i) => '<tr><td><b>' + esc(v.rotulo) + '</b>' + (v.sku ? '<div class="small muted">' + esc(v.sku) + '</div>' : '') + '</td><td class="num">' + brl(v.preco) + (v.precoDe ? '<div class="small muted"><s>' + brl(v.precoDe) + '</s></div>' : '') + '</td>' +
+    '<div class="tabela-wrap"><table class="bf-tab"><thead><tr><th>Variação</th><th class="num">Preço hoje</th>' + (porMetro.length ? '<th class="num">R$ / metro</th>' : '') + '<th class="num">Seu custo</th>' + (kv.length ? '<th class="num">Concorrente (R$/m)</th>' : '') + '<th class="num">Lucro hoje</th><th class="num">Desconto máx. sem prejuízo</th><th class="num">Desconto máx. c/ ' + BFp.margemMin + '% margem</th><th class="num">Preço com ' + dEsc + '% off</th><th class="num">Lucro na oferta</th><th class="num">Vender a mais p/ empatar</th></tr></thead><tbody>' +
+    linhas.map(({ v, p }, i) => '<tr><td><b>' + esc(v.rotulo) + '</b>' + (v.sku ? '<div class="small muted">' + esc(v.sku) + '</div>' : '') + '</td><td class="num"><input type="number" step="0.01" min="0" data-bfp="' + i + '" value="' + (v.preco || '') + '" placeholder="seu preço" style="width:84px;text-align:right">' + (v.precoDe ? '<div class="small muted"><s>' + brl(v.precoDe) + '</s></div>' : '') + '</td>' +
       (porMetro.length ? '<td class="num">' + (v.metros ? brl(v.preco / v.metros) : '—') + '</td>' : '') +
       '<td class="num"><input type="number" step="0.01" min="0" data-bfc="' + i + '" value="' + (v.custo || '') + '" placeholder="0,00" style="width:84px;text-align:right"></td>' +
-      (p.semCusto ? '<td class="num muted" colspan="6">coloque o custo</td>' :
+      (kv.length ? '<td class="num">' + (vsConc[i] ? brl(vsConc[i].k.m) + '<div class="small ' + (vsConc[i].ganha ? 'var-pos' : 'var-neg') + '">' + (vsConc[i].ganha ? '✔ você ' + (vsConc[i].dif ? Math.abs(vsConc[i].dif) + '% mais barato' : 'empata') : '✖ você ' + vsConc[i].dif + '% mais caro') + '</div>' + (vsConc[i].k.metros !== v.metros || vsConc[i].k.medida ? '<div class="small muted">' + [vsConc[i].k.metros !== v.metros ? 'pacote de ' + vsConc[i].k.metros + ' m' : '', vsConc[i].k.medida || ''].filter(Boolean).join(' · ') + '</div>' : '') : '—') + '</td>' : '') +
+      (p.semCusto ? '<td class="num muted" colspan="6">' + (v.preco ? 'coloque o custo' : 'coloque o seu preço e o custo') + '</td>' :
         '<td class="num ' + (p.hoje.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(p.hoje.lucro) + '<div class="small muted">' + pct(p.hoje.margem) + '</div></td>' +
         '<td class="num">' + (p.semPrejuizo != null ? String(p.semPrejuizo).replace('.', ',') + '%' : '<span class="var-neg">nenhum</span>') + '</td>' +
         '<td class="num"><b>' + (p.comMargem != null ? String(p.comMargem).replace('.', ',') + '%' : '<span class="var-neg">nenhum</span>') + '</b></td>' +
@@ -1187,6 +1266,7 @@ function desenharBF() {
     (riscado.length ? '<p class="aviso">⚠️ <b>Cuidado com o preço riscado:</b> ' + riscado.length + ' variações mostram um preço "de" ' + Math.round(riscado[0].precoDe / riscado[0].preco * 100 - 100) + '% acima do preço atual. Na Black Friday, anuncie o desconto sobre o preço que você pratica hoje e não suba o "de": "de/por" com preço que não foi praticado é a "Black Fraude" que o Procon e o Reclame Aqui apontam.</p>' : '') +
     '</div>';
   $$('[data-bfc]').forEach(i => i.onchange = () => { BFp.variacoes[+i.dataset.bfc].custo = Number(i.value) || 0; desenharBF(); });
+  $$('[data-bfp]').forEach(i => i.onchange = () => { BFp.variacoes[+i.dataset.bfp].preco = Number(i.value) || 0; desenharBF(); });
   if ($('#bf-salvo') && /salvo/.test($('#bf-salvo').textContent)) $('#bf-salvo').textContent = 'mudou: salve de novo';
 }
 
@@ -1596,7 +1676,7 @@ const AJUDA = [
   // outras abas
   ['simulador de faturamento', 'Conta rápida: se eu vender X unidades a R$ Y, quanto entra e quanto sobra no bolso em cada canal.'],
   ['comparar produtos', 'Coloca 2 ou 3 pesquisas lado a lado (por exemplo, fita 12 mm e 19 mm): nota, vendas, concorrência, melhor canal, lucro por unidade e se a procura está subindo. O 🏆 marca o melhor em cada ponto e o topo diz qual priorizar.'],
-  ['black friday', 'Importa o produto pelo link da sua loja e mostra, para cada variação, até quanto dá para baixar o preço sem prejuízo, até quanto mantendo a sua margem mínima, o preço de oferta sugerido e quanto produzir a mais.'],
+  ['black friday', 'Use o seu produto (do catálogo, do link da sua loja ou digitado) e, se quiser, o link de um concorrente para comparar. Mostra, para cada variação, até quanto dá para baixar o preço sem prejuízo, até quanto mantendo a sua margem mínima, o preço de oferta sugerido e quanto produzir a mais.'],
   ['catálogo da fábrica', 'Seus produtos e variações (largura, comprimento...). Com custo e peso de cada variação, o Radar mostra quais dão mais lucro e o melhor canal de cada uma.'],
   ['ranking de lucro', 'As variações do catálogo ordenadas pelo lucro por unidade no melhor canal de cada uma.'],
   ['pesquisa em lote', 'Pesquisa até 20 palavras de uma vez e mostra o ranking. Bom para comparar variações e ideias.'],

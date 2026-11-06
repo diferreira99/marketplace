@@ -515,3 +515,9 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .bf-campos label{display:grid;gap:4px;font-size:.78rem;font-weight:600;color:var(--muted)}
 .bf-tab td,.bf-tab th{white-space:nowrap}
 @media (max-width:640px){.bf-url{flex-direction:column}}
+
+.bf-fontes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bf-fontes .bf-url{margin-top:4px}
+.bf-url select{flex:1;min-width:0}
+.bf-manual{margin-top:10px}
+@media (max-width:760px){.bf-fontes{grid-template-columns:1fr}}

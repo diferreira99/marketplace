@@ -46,6 +46,8 @@ async function handler(req, res, deps = {}) {
       taxaSite: num(pl.taxaSite, 100), fretePedido: num(pl.fretePedido, 1e4), embalagem: num(pl.embalagem, 1e4), margemMin: num(pl.margemMin, 90), desconto: num(pl.desconto, 90), vendasMes: num(pl.vendasMes, 1e7),
       custoMetro: Object.fromEntries(Object.entries(pl.custoMetro || {}).slice(0, 10).map(([k, v]) => [txt(k, 40), num(v, 1e4)])),
       variacoes: (Array.isArray(pl.variacoes) ? pl.variacoes : []).slice(0, 60).map(v => ({ rotulo: txt(v.rotulo, 80), opcoes: (v.opcoes || []).slice(0, 3).map(o => txt(o, 40)), sku: txt(v.sku, 40), preco: num(v.preco, 1e6), precoDe: num(v.precoDe, 1e6), metros: num(v.metros, 1e4), custo: num(v.custo, 1e6) })) };
+    const k = pl.concorrente || null;
+    plano.concorrente = k && Array.isArray(k.variacoes) ? { url: txt(k.url, 500), nome: txt(k.nome, 160), variacoes: k.variacoes.slice(0, 60).map(v => ({ rotulo: txt(v.rotulo, 80), opcoes: (v.opcoes || []).slice(0, 3).map(o => txt(o, 40)), preco: num(v.preco, 1e6), precoDe: num(v.precoDe, 1e6), metros: num(v.metros, 1e4) })) } : null;
     await arm.mudarArquivo('blackfriday.json', () => plano);
     return res.status(200).json({ ok: true });
   }
