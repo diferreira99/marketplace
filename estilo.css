@@ -503,3 +503,15 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .cmp-tab thead a{font-weight:800;font-size:.9rem;text-transform:none;letter-spacing:0}
 .cmp-ganha{background:rgba(31,157,85,.08)}
 @media (max-width:760px){.cmp-sel{grid-template-columns:1fr}}
+
+/* 🛍️ black friday */
+.bf-datas{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.bf-data{display:grid;gap:1px;padding:10px 16px;border-radius:12px;background:var(--ink);color:var(--card);min-width:150px}
+.bf-data span{font-size:1.25rem;font-weight:800}
+.bf-data small{opacity:.75}
+.bf-url{display:flex;gap:8px}
+.bf-url input{flex:1;min-width:0}
+.bf-campos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.bf-campos label{display:grid;gap:4px;font-size:.78rem;font-weight:600;color:var(--muted)}
+.bf-tab td,.bf-tab th{white-space:nowrap}
+@media (max-width:640px){.bf-url{flex-direction:column}}

@@ -1,9 +1,12 @@
 // GET  /api/catalogo -> produtos da fábrica com as variações (largura, comprimento, custo, peso...)
 // POST /api/catalogo {acao:'salvar', produto} | {acao:'remover', id}
+// POST /api/catalogo {acao:'importar-url', url} -> lê variações e preços da página do produto (lib/importar)
+// GET  /api/catalogo?bf=1 | POST {acao:'bf-salvar', plano} -> plano de Black Friday do time
 'use strict';
 const crypto = require('crypto');
 const { exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
+const { importar } = require('../lib/importar');
 
 const ARQ = 'catalogo.json';
 const MAX_PROD = 50, MAX_VAR = 40;
@@ -28,10 +31,25 @@ async function handler(req, res, deps = {}) {
   const arm = deps.armazem || armazem.padrao();
   res.setHeader('Cache-Control', 'no-store');
   if (!exigirSenha(req, res)) return;
+  if (req.method === 'GET' && req.query && req.query.bf) return res.status(200).json((await arm.lerArquivo('blackfriday.json')) || {});
   if (req.method === 'GET') return res.status(200).json({ nuvem: arm.ativo, produtos: (await arm.lerArquivo(ARQ)) || [] });
   if (req.method !== 'POST') return res.status(405).json({ erro: 'use GET ou POST' });
-  if (!arm.ativo) return res.status(503).json({ erro: 'Armazenamento na nuvem não configurado.' });
   let b = req.body; if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } } b = b || {};
+  if (b.acao === 'importar-url') {
+    try { return res.status(200).json(await importar(b.url, deps.fetch || fetch)); }
+    catch (e) { return res.status(e.status || 500).json({ erro: e.message }); }
+  }
+  if (!arm.ativo) return res.status(503).json({ erro: 'Armazenamento na nuvem não configurado.' });
+  if (b.acao === 'bf-salvar') {
+    const pl = b.plano || {};
+    const plano = { em: new Date().toISOString(), url: txt(pl.url, 500), nome: txt(pl.nome, 160), canal: txt(pl.canal, 40),
+      taxaSite: num(pl.taxaSite, 100), fretePedido: num(pl.fretePedido, 1e4), embalagem: num(pl.embalagem, 1e4), margemMin: num(pl.margemMin, 90), desconto: num(pl.desconto, 90), vendasMes: num(pl.vendasMes, 1e7),
+      custoMetro: Object.fromEntries(Object.entries(pl.custoMetro || {}).slice(0, 10).map(([k, v]) => [txt(k, 40), num(v, 1e4)])),
+      variacoes: (Array.isArray(pl.variacoes) ? pl.variacoes : []).slice(0, 60).map(v => ({ rotulo: txt(v.rotulo, 80), opcoes: (v.opcoes || []).slice(0, 3).map(o => txt(o, 40)), sku: txt(v.sku, 40), preco: num(v.preco, 1e6), precoDe: num(v.precoDe, 1e6), metros: num(v.metros, 1e4), custo: num(v.custo, 1e6) })) };
+    await arm.mudarArquivo('blackfriday.json', () => plano);
+    return res.status(200).json({ ok: true });
+  }
+  b = req.body; if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = {}; } } b = b || {};
   try {
     if (b.acao === 'salvar') {
       const p = limparProduto(b.produto || {});

@@ -148,7 +148,7 @@ function irPara(aba) {
   const mais = $('#nav-mais'); if (mais) mais.classList.toggle('ativo', !!$('#nav button[data-aba="' + aba + '"]:not([data-mob])'));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, comparar: pintarComparar, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, blackfriday: pintarBlackFriday, comparar: pintarComparar, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
@@ -1060,6 +1060,136 @@ async function compararAgora() {
   $$('[data-cmp-abrir]').forEach(a => a.onclick = e => { e.preventDefault(); abrir(a.dataset.cmpAbrir); });
 }
 
+// ───────────────────────── 🛍️ BLACK FRIDAY ─────────────────────────
+// Importa o produto pelo link da loja e diz até quanto dá para baixar o preço, qual oferta usar e quanto produzir.
+let BFp = null;   // plano em edição
+async function pintarBlackFriday() {
+  const box = $('#aba-blackfriday');
+  if (!BFp) { try { const r = await api('/api/catalogo?bf=1'); BFp = r && r.variacoes ? r : null; } catch (e) { BFp = null; } }
+  if (!BFp) BFp = { url: 'https://decoraloja.com.br/produtos/fita-de-eva-para-espelho-autocolante/', nome: '', variacoes: [], canal: 'site', taxaSite: 5, fretePedido: 0, embalagem: 1, margemMin: 15, vendasMes: 0, custoMetro: {} };
+  const datas = Calendario.proximas(new Date(), 6).filter(x => /11\.11|Black Friday|Cyber/.test(x.nome));
+  const c = cfg();
+  const canais = [['site', 'Site próprio (sua loja)']].concat(Object.entries(c.taxas).map(([id, t]) => [id, t.nome]));
+  box.innerHTML = '<h1 class="titulo-aba">Black Friday</h1><p class="sub-aba">Até quanto dá para baixar o preço sem prejuízo, qual oferta anunciar e quanto produzir. Importe o produto pelo link da sua loja.</p>' +
+    '<div class="bf-datas">' + datas.map(x => '<div class="bf-data"><b>' + esc(x.nome.replace(' (Shopee e Mercado Livre)', '')) + '</b><span>' + (x.dias <= 0 ? 'é hoje' : 'em ' + x.dias + ' dia' + (x.dias > 1 ? 's' : '')) + '</span><small>' + new Date(x.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) + '</small></div>').join('') + '</div>' +
+    '<div class="card" style="margin-top:14px"><h2>1. Seu produto</h2><div class="bf-url"><input id="bf-url" type="url" placeholder="https://sua-loja.com.br/produtos/..." value="' + esc(BFp.url || '') + '"><button type="button" class="pri" id="bf-importar">Importar</button></div>' +
+      '<div class="small muted" id="bf-prod">' + (BFp.variacoes.length ? '✅ <b>' + esc(BFp.nome) + '</b> · ' + BFp.variacoes.length + ' variações importadas' : 'Cole o link da página do produto e toque em Importar.') + '</div></div>' +
+    '<div class="card" style="margin-top:14px"><h2>2. Seus números <span class="tag">ficam salvos para o time</span></h2><div class="bf-campos">' +
+      '<label>Onde vai vender<select id="bf-canal">' + canais.map(([id, n]) => '<option value="' + id + '"' + (id === BFp.canal ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></label>' +
+      '<label class="bf-site">Taxa de pagamento do site (%)<input type="number" step="0.1" min="0" id="bf-taxa" value="' + BFp.taxaSite + '"></label>' +
+      '<label class="bf-site">Frete que você paga por pedido (R$)<input type="number" step="0.5" min="0" id="bf-frete" value="' + BFp.fretePedido + '"></label>' +
+      '<label>Embalagem por pedido (R$)<input type="number" step="0.1" min="0" id="bf-emb" value="' + BFp.embalagem + '"></label>' +
+      '<label>Desconto que quer anunciar (%)<input type="number" step="1" min="0" max="90" id="bf-desc" value="' + (BFp.desconto != null ? BFp.desconto : 20) + '"></label>' +
+      '<label>Margem mínima na oferta (%)<input type="number" step="1" min="0" id="bf-margem" value="' + BFp.margemMin + '"></label>' +
+      '<label>Pedidos por mês hoje<input type="number" step="1" min="0" id="bf-vendas" value="' + (BFp.vendasMes || '') + '" placeholder="ex.: 60"></label>' +
+    '</div><div id="bf-custos"></div><p class="small muted">Imposto usado: ' + pct(c.imposto) + ' (ajuste em ⚙️ Taxas).</p></div>' +
+    '<div id="bf-res" style="margin-top:14px"></div>' +
+    '<div class="pal-acoes" id="bf-acoes" style="margin-top:12px"><button type="button" class="pri" id="bf-salvar">Salvar plano para o time</button><span class="small muted" id="bf-salvo"></span></div>';
+  $('#bf-salvar').onclick = async () => {
+    $('#bf-salvo').textContent = 'salvando…';
+    try { await api('/api/catalogo', { method: 'POST', body: JSON.stringify({ acao: 'bf-salvar', plano: BFp }) }); $('#bf-salvo').textContent = '✔ salvo para o time'; }
+    catch (e) { $('#bf-salvo').textContent = '⚠️ ' + e.message; }
+  };
+  const ler = () => {
+    BFp.canal = $('#bf-canal').value; BFp.taxaSite = Number($('#bf-taxa').value) || 0; BFp.fretePedido = Number($('#bf-frete').value) || 0;
+    BFp.embalagem = Number($('#bf-emb').value) || 0; BFp.margemMin = Number($('#bf-margem').value) || 0; BFp.desconto = Math.min(90, Math.max(0, Number($('#bf-desc').value) || 0)); BFp.vendasMes = Number($('#bf-vendas').value) || 0;
+    $$('.bf-site').forEach(l => l.style.display = BFp.canal === 'site' ? '' : 'none');
+  };
+  $$('#bf-canal, #bf-taxa, #bf-frete, #bf-emb, #bf-margem, #bf-vendas, #bf-desc').forEach(i => i.oninput = () => { ler(); desenharBF(); });
+  $('#bf-canal').onchange = () => { ler(); desenharBF(); };
+  $('#bf-importar').onclick = async () => {
+    const bt = $('#bf-importar'); bt.disabled = true; bt.textContent = 'Lendo a página…';
+    try {
+      const r = await api('/api/catalogo', { method: 'POST', body: JSON.stringify({ acao: 'importar-url', url: $('#bf-url').value.trim() }) });
+      const antes = Object.fromEntries((BFp.variacoes || []).map(v => [v.sku || v.rotulo, v.custo]));
+      BFp.url = r.url; BFp.nome = r.nome; BFp.variacoes = r.variacoes.map(v => ({ ...v, custo: antes[v.sku || v.rotulo] || 0 }));
+      $('#bf-prod').innerHTML = '✅ <b>' + esc(r.nome) + '</b> · ' + r.variacoes.length + ' variações importadas'; desenharCustosBF(); desenharBF();
+    } catch (e) { $('#bf-prod').innerHTML = '⚠️ ' + esc(e.message); }
+    bt.disabled = false; bt.textContent = 'Importar';
+  };
+  ler(); desenharCustosBF(); desenharBF();
+}
+// grupos de custo: se as variações têm metros (ex.: rolos), o custo sai do custo por metro de cada medida
+function gruposBF() {
+  const g = {};
+  BFp.variacoes.forEach(v => { if (!v.metros) return; const k = (v.opcoes || []).filter(o => !ehMetragem(o)).join(' · ') || 'padrão'; (g[k] = g[k] || []).push(v); });
+  return g;
+}
+function ehMetragem(o) { return /(\d+(?:[.,]\d+)?)\s*(?:m\b|mts?\b|metros?\b)/i.test(o); }
+function desenharCustosBF() {
+  const box = $('#bf-custos'); if (!box) return;
+  if (!BFp.variacoes.length) { box.innerHTML = ''; return; }
+  const g = gruposBF(), chaves = Object.keys(g);
+  box.innerHTML = chaves.length
+    ? '<div class="small" style="margin:12px 0 6px"><b>Seu custo por metro</b> (produção + material, sem embalagem). O Radar calcula o custo de cada pacote.</div><div class="bf-campos">' +
+      chaves.map(k => '<label>' + esc(k) + '<span class="sim-in">R$ <input type="number" step="0.01" min="0" data-cm="' + esc(k) + '" value="' + (BFp.custoMetro[k] || '') + '" placeholder="0,00"> /m</span></label>').join('') + '</div>'
+    : '<div class="small" style="margin-top:10px">Coloque o custo de cada variação na tabela abaixo.</div>';
+  $$('[data-cm]').forEach(i => i.oninput = () => {
+    const cm = Number(i.value) || 0; BFp.custoMetro[i.dataset.cm] = cm;
+    (g[i.dataset.cm] || []).forEach(v => { v.custo = Math.round(v.metros * cm * 100) / 100; });
+    desenharBF();
+  });
+}
+function taxaBF() {
+  if (BFp.canal === 'site') return { nome: 'Site próprio', comissao: BFp.taxaSite, fixoAbaixo: 0, limiteFixo: 0, freteAcima: BFp.fretePedido };
+  return cfg().taxas[BFp.canal] || cfg().taxas.mercadolivre;
+}
+function desenharBF() {
+  const box = $('#bf-res'); if (!box) return;
+  if (!BFp.variacoes.length) { box.innerHTML = ''; return; }
+  const c = cfg(), taxa = taxaBF();
+  const dEsc = BFp.desconto != null ? BFp.desconto : 20;
+  const linhas = BFp.variacoes.map(v => {
+    const p = BlackFriday.planoLinha({ preco: v.preco, custo: v.custo, embalagem: BFp.embalagem, imposto: c.imposto, taxa, margemMin: BFp.margemMin });
+    if (!p.semCusto) {   // a oferta é o desconto que você escolheu
+      p.precoOferta = dEsc ? BlackFriday.precoBonito(v.preco * (1 - dEsc / 100)) : v.preco;
+      p.oferta = Margem.calcularCanal(p.precoOferta, v.custo, BFp.embalagem, c.imposto, taxa);
+      p.descReal = Math.round((1 - p.precoOferta / v.preco) * 1000) / 10;
+      p.status = p.oferta.lucro < 0 ? 'prejuizo' : p.oferta.margem < BFp.margemMin ? 'abaixo' : 'ok';
+    }
+    return { v, p };
+  });
+  const comCusto = linhas.filter(l => !l.p.semCusto);
+  const seguro = comCusto.length ? Math.min(...comCusto.map(l => l.p.comMargem == null ? 0 : l.p.comMargem)) : null;
+  const redondo = seguro != null ? BlackFriday.DESCONTOS.find(x => x <= seguro) || 0 : null;
+  const porMetro = BFp.variacoes.filter(v => v.metros).map(v => ({ v, m: v.preco / v.metros }));
+  const pm = porMetro.length >= 2 ? [porMetro.reduce((a, b) => (b.m > a.m ? b : a)), porMetro.reduce((a, b) => (b.m < a.m ? b : a))] : null;
+  const riscado = BFp.variacoes.filter(v => v.precoDe && v.precoDe / v.preco >= 1.5);
+  const bf = Calendario.proximas(new Date(), 6).find(x => x.nome === 'Black Friday');
+  const extraBF = BFp.vendasMes && bf ? Calendario.extra(BFp.vendasMes, bf.fator) : 0;
+  const prejuizoHoje = comCusto.filter(l => l.p.hoje.lucro < 0);
+  box.innerHTML = '<div class="card"><h2>3. Plano de Black Friday <span class="tag">' + esc(taxa.nome) + '</span></h2>' +
+    (!comCusto.length ? '<div class="vazio">Coloque o seu custo (por metro ou por variação) para ver até quanto dá para baixar o preço.</div>' :
+      '<div class="cli-resumo">' +
+        (() => { const ok = comCusto.filter(l => l.p.status === 'ok').length, ruim = comCusto.length - ok;
+          const lH = comCusto.reduce((a, l) => a + l.p.hoje.lucro, 0) / comCusto.length, lO = comCusto.reduce((a, l) => a + l.p.oferta.lucro, 0) / comCusto.length;
+          const emp = lO > 0 ? Math.round((lH / lO - 1) * 100) : null;
+          return (ruim ? '⚠️ Com <b>' + dEsc + '% de desconto</b>, ' + ruim + ' de ' + comCusto.length + ' variações ficam abaixo de ' + BFp.margemMin + '% de margem (marcadas com ✖).' : '✅ <b>' + dEsc + '% de desconto</b> cabe em todas as ' + comCusto.length + ' variações, com pelo menos ' + BFp.margemMin + '% de margem.') +
+            ' O lucro médio por pedido vai de ' + brl(lH) + ' para ' + brl(lO) + (emp != null ? ': precisa vender <b>' + emp + '% a mais</b> para lucrar o mesmo total.' : '.') + '<br>'; })() +
+        (redondo ? '🛍️ Desconto máximo que cabe em todas mantendo ' + BFp.margemMin + '% de margem: <b>' + redondo + '%</b>. ' : '') +
+        (pm && pm[0].v !== pm[1].v ? ' <br>💡 O metro sai <b>' + brl(pm[0].m) + '</b> no ' + esc(pm[0].v.rotulo) + ' e <b>' + brl(pm[1].m) + '</b> no ' + esc(pm[1].v.rotulo) + ': destaque os pacotes maiores ("leve mais, pague menos por metro") em vez de dar desconto grande no pacote pequeno.' : '') +
+        (extraBF ? ' <br>🏭 Produza cerca de <b>+' + num(extraBF) + ' pedidos</b> a mais para a semana da Black Friday' + (bf ? ' (' + (bf.atrasado ? 'comece já' : 'até ' + dataBR(bf.produzirAte)) + ')' : '') + '.' : '') +
+      '</div>') +
+    (prejuizoHoje.length ? '<p class="var-neg small">⚠️ ' + prejuizoHoje.length + ' variação(ões) já dão prejuízo no preço de hoje neste canal: ' + prejuizoHoje.slice(0, 3).map(l => esc(l.v.rotulo)).join(', ') + '.</p>' : '') +
+    '<div class="tabela-wrap"><table class="bf-tab"><thead><tr><th>Variação</th><th class="num">Preço hoje</th>' + (porMetro.length ? '<th class="num">R$ / metro</th>' : '') + '<th class="num">Seu custo</th><th class="num">Lucro hoje</th><th class="num">Desconto máx. sem prejuízo</th><th class="num">Desconto máx. c/ ' + BFp.margemMin + '% margem</th><th class="num">Preço com ' + dEsc + '% off</th><th class="num">Lucro na oferta</th><th class="num">Vender a mais p/ empatar</th></tr></thead><tbody>' +
+    linhas.map(({ v, p }, i) => '<tr><td><b>' + esc(v.rotulo) + '</b>' + (v.sku ? '<div class="small muted">' + esc(v.sku) + '</div>' : '') + '</td><td class="num">' + brl(v.preco) + (v.precoDe ? '<div class="small muted"><s>' + brl(v.precoDe) + '</s></div>' : '') + '</td>' +
+      (porMetro.length ? '<td class="num">' + (v.metros ? brl(v.preco / v.metros) : '—') + '</td>' : '') +
+      '<td class="num"><input type="number" step="0.01" min="0" data-bfc="' + i + '" value="' + (v.custo || '') + '" placeholder="0,00" style="width:84px;text-align:right"></td>' +
+      (p.semCusto ? '<td class="num muted" colspan="6">coloque o custo</td>' :
+        '<td class="num ' + (p.hoje.lucro >= 0 ? 'lucro-pos' : 'lucro-neg') + '">' + brl(p.hoje.lucro) + '<div class="small muted">' + pct(p.hoje.margem) + '</div></td>' +
+        '<td class="num">' + (p.semPrejuizo != null ? String(p.semPrejuizo).replace('.', ',') + '%' : '<span class="var-neg">nenhum</span>') + '</td>' +
+        '<td class="num"><b>' + (p.comMargem != null ? String(p.comMargem).replace('.', ',') + '%' : '<span class="var-neg">nenhum</span>') + '</b></td>' +
+        '<td class="num">' + (p.precoOferta ? '<b>' + brl(p.precoOferta) + '</b> ' + (p.status === 'ok' ? '<span class="var-pos">✔</span>' : '<span class="var-neg" title="' + (p.status === 'prejuizo' ? 'dá prejuízo' : 'abaixo da margem mínima') + '">✖</span>') + '<div class="small muted">−' + String(p.descReal).replace('.', ',') + '%</div>' : '—') + '</td>' +
+        '<td class="num ' + (p.oferta && p.oferta.lucro >= 0 ? 'lucro-pos' : '') + '">' + (p.oferta ? brl(p.oferta.lucro) + '<div class="small muted">' + pct(p.oferta.margem) + '</div>' : '—') + '</td>' +
+        '<td class="num">' + (BlackFriday.vendasParaEmpatar(p.hoje, p.oferta) != null ? '+' + BlackFriday.vendasParaEmpatar(p.hoje, p.oferta) + '%' : '—') + '</td>') + '</tr>').join('') +
+    '</tbody></table></div>' +
+    '<p class="small muted">"Vender a mais p/ empatar": quanto as vendas precisam subir na oferta para o lucro total ficar igual ao de hoje. Preço com desconto termina em ,90. ✔ = mantém a margem mínima; ✖ = fica abaixo dela ou dá prejuízo.</p>' +
+    (riscado.length ? '<p class="aviso">⚠️ <b>Cuidado com o preço riscado:</b> ' + riscado.length + ' variações mostram um preço "de" ' + Math.round(riscado[0].precoDe / riscado[0].preco * 100 - 100) + '% acima do preço atual. Na Black Friday, anuncie o desconto sobre o preço que você pratica hoje e não suba o "de": "de/por" com preço que não foi praticado é a "Black Fraude" que o Procon e o Reclame Aqui apontam.</p>' : '') +
+    '</div>';
+  $$('[data-bfc]').forEach(i => i.onchange = () => { BFp.variacoes[+i.dataset.bfc].custo = Number(i.value) || 0; desenharBF(); });
+  if ($('#bf-salvo') && /salvo/.test($('#bf-salvo').textContent)) $('#bf-salvo').textContent = 'mudou: salve de novo';
+}
+
 // ───────────────────────── ⚙️ TAXAS ─────────────────────────
 function pintarTaxas() {
   const c = cfg(), box = $('#aba-taxas');
@@ -1466,6 +1596,7 @@ const AJUDA = [
   // outras abas
   ['simulador de faturamento', 'Conta rápida: se eu vender X unidades a R$ Y, quanto entra e quanto sobra no bolso em cada canal.'],
   ['comparar produtos', 'Coloca 2 ou 3 pesquisas lado a lado (por exemplo, fita 12 mm e 19 mm): nota, vendas, concorrência, melhor canal, lucro por unidade e se a procura está subindo. O 🏆 marca o melhor em cada ponto e o topo diz qual priorizar.'],
+  ['black friday', 'Importa o produto pelo link da sua loja e mostra, para cada variação, até quanto dá para baixar o preço sem prejuízo, até quanto mantendo a sua margem mínima, o preço de oferta sugerido e quanto produzir a mais.'],
   ['catálogo da fábrica', 'Seus produtos e variações (largura, comprimento...). Com custo e peso de cada variação, o Radar mostra quais dão mais lucro e o melhor canal de cada uma.'],
   ['ranking de lucro', 'As variações do catálogo ordenadas pelo lucro por unidade no melhor canal de cada uma.'],
   ['pesquisa em lote', 'Pesquisa até 20 palavras de uma vez e mostra o ranking. Bom para comparar variações e ideias.'],
@@ -1739,5 +1870,5 @@ async function pintarAvisos() {
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
 function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel', 'comparar'].includes(aba0)) irPara(aba0); else primeiraVez(); }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel', 'comparar', 'blackfriday'].includes(aba0)) irPara(aba0); else primeiraVez(); }
 })();
