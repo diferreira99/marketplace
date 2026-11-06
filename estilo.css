@@ -409,3 +409,8 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
   .nav-grupo{padding-top:8px}
   .lado .marca img{width:28px;height:28px}
 }
+/* celular: a barra de baixo mostra só o menu (marca e rodapé ficam no "☰ Mais") */
+@media (max-width:860px){
+  .lado .marca,.lado-rodape{display:none!important}
+  .lado{overflow:visible}
+}
