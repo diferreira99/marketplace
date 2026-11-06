@@ -132,12 +132,13 @@ let abaAtual = 'painel';
 function irPara(aba) {
   abaAtual = aba;
   $$('#nav button').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
+  const mais = $('#nav-mais'); if (mais) mais.classList.toggle('ativo', !!$('#nav button[data-aba="' + aba + '"]:not([data-mob])'));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
   ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
-$$('#nav button').forEach(b => b.onclick = () => irPara(b.dataset.aba));
+$$('#nav button[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
 
 async function carregar() {
   if (!senha()) return;
@@ -1250,8 +1251,55 @@ const _visto = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersec
 new MutationObserver(() => ['#card-onde', '#card-preco'].forEach(sel => { const el = document.querySelector(sel); if (el && !el._obs) { el._obs = 1; _visto.observe(el); } }))
   .observe(document.getElementById('app'), { childList: true, subtree: true });
 
+// ───────────────────────── 📲 APP NO CELULAR (PWA) ─────────────────────────
+const instalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const ehIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let pedidoInstalar = null;
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); pedidoInstalar = e; mostrarInstalar(); });
+addEventListener('appinstalled', () => { pedidoInstalar = null; ls.set('radar_instalado', true); mostrarInstalar(); });
+function podeInstalar() { return !instalado() && (pedidoInstalar || ehIOS); }
+async function instalarApp() {
+  if (pedidoInstalar) { pedidoInstalar.prompt(); const r = await pedidoInstalar.userChoice.catch(() => null); if (r && r.outcome === 'accepted') pedidoInstalar = null; mostrarInstalar(); return; }
+  if (ehIOS) alert('Para instalar no iPhone:\n\n1. Toque no botão Compartilhar (o quadrado com a seta para cima), embaixo no Safari.\n2. Escolha "Adicionar à Tela de Início".\n3. Toque em Adicionar.\n\nO Radar aparece na tela como um app.');
+}
+function mostrarInstalar() {
+  const b = $('#bt-instalar'); if (b) { b.classList.toggle('hidden', !podeInstalar()); b.onclick = instalarApp; }
+  const ban = $('#banner-instalar');
+  if (ban) ban.remove();
+  if (!podeInstalar() || ls.get('radar_banner_fechado', false) || innerWidth > 860) return;
+  const div = document.createElement('div'); div.id = 'banner-instalar'; div.className = 'banner-instalar';
+  div.innerHTML = '<img src="/icones/icone-192.png" alt=""><div><b>Instale o Radar no celular</b><div class="small">Abre em tela cheia, direto da tela inicial.</div></div><button type="button" class="pri" id="ban-sim">Instalar</button><button type="button" class="link" id="ban-nao" aria-label="Fechar">✕</button>';
+  $('.conteudo').prepend(div);
+  $('#ban-sim').onclick = instalarApp;
+  $('#ban-nao').onclick = () => { ls.set('radar_banner_fechado', true); div.remove(); };
+}
+// menu "Mais" do celular: tudo o que não cabe na barra de baixo
+function abrirFolha(sim) {
+  $('#folha').classList.toggle('hidden', !sim); $('#folha-fundo').classList.toggle('hidden', !sim);
+  if (!sim) return;
+  const grupos = []; let atual = null;
+  Array.from($('#nav').children).forEach(el => {
+    if (el.classList.contains('nav-grupo')) { atual = { nome: el.textContent, itens: [] }; grupos.push(atual); }
+    else if (el.dataset.aba && atual) atual.itens.push(el);
+  });
+  $('#folha').innerHTML = '<div class="folha-alca"></div>' + grupos.map(g => '<div class="folha-grupo">' + esc(g.nome) + '</div><div class="folha-grade">' +
+    g.itens.map(b => '<button type="button" data-ir="' + b.dataset.aba + '" class="' + (b.dataset.aba === abaAtual ? 'on' : '') + '">' + b.innerHTML + '</button>').join('') + '</div>').join('') +
+    '<div class="folha-grupo">Conta</div><div class="folha-lista">' +
+    (podeInstalar() ? '<button type="button" id="f-instalar">📲 Instalar o app</button>' : '') +
+    '<button type="button" id="f-tema">🌓 Trocar tema claro/escuro</button><button type="button" id="f-sair">🔒 Sair</button></div>';
+  $$('#folha [data-ir]').forEach(b => b.onclick = () => { abrirFolha(false); irPara(b.dataset.ir); });
+  if ($('#f-instalar')) $('#f-instalar').onclick = () => { abrirFolha(false); instalarApp(); };
+  $('#f-tema').onclick = () => { $('#tema').click(); };
+  $('#f-sair').onclick = () => { abrirFolha(false); $('#sair').click(); };
+}
+$('#nav-mais').onclick = () => abrirFolha($('#folha').classList.contains('hidden'));
+$('#folha-fundo').onclick = () => abrirFolha(false);
+addEventListener('keydown', e => { if (e.key === 'Escape') abrirFolha(false); });
+mostrarInstalar();
+
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
 function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador'].includes(aba0)) irPara(aba0); else primeiraVez(); }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel'].includes(aba0)) irPara(aba0); else primeiraVez(); }
 })();

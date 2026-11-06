@@ -314,3 +314,32 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .por-que summary{cursor:pointer;font-weight:700;font-size:.85rem;color:var(--brand)}
 .por-que[open] summary{margin-bottom:8px}
 .mini-kpis .l{display:flex;align-items:center;flex-wrap:wrap;gap:2px}
+
+/* 📲 app no celular */
+.so-cel{display:none!important}
+.banner-instalar{display:flex;align-items:center;gap:10px;margin:12px 0 0;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);font-size:.88rem}
+.banner-instalar img{width:40px;height:40px;border-radius:10px}
+.banner-instalar > div{flex:1;min-width:0}
+.banner-instalar .pri{padding:8px 14px}
+.folha-fundo{position:fixed;inset:0;background:rgba(5,8,20,.5);z-index:40}
+.folha{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--card);border-radius:20px 20px 0 0;padding:8px 16px calc(18px + env(safe-area-inset-bottom));max-height:80vh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
+.folha-alca{width:40px;height:5px;border-radius:9px;background:var(--line);margin:4px auto 6px}
+.folha-grupo{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 4px 6px}
+.folha-grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.folha-grade button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 4px;border-radius:14px;background:var(--card-2);border:1px solid var(--line);font-size:.74rem;font-weight:700;color:var(--ink);position:relative}
+.folha-grade button span{font-size:1.4rem}
+.folha-grade button.on{border-color:var(--brand);color:var(--brand)}
+.folha-grade .selo{position:absolute;top:4px;right:4px;margin:0}
+.folha-lista{display:grid;gap:4px}
+.folha-lista button{text-align:left;padding:12px;border-radius:12px;background:var(--card-2);border:1px solid var(--line);font-weight:600;color:var(--ink)}
+@media (max-width:860px){
+  .so-cel{display:flex!important}
+  #nav{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));overflow:visible}
+  #nav button{min-width:0}
+  #nav button[data-aba]:not([data-mob]){display:none}
+  .lado{padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+  .conteudo{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+  .topo{padding-top:calc(12px + env(safe-area-inset-top))}
+  input,select,textarea{font-size:16px}
+}
+@media (display-mode: standalone){ body{overscroll-behavior-y:none} }

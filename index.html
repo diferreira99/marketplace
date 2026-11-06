@@ -2,9 +2,18 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121733">
+<meta name="description" content="Validação de produto no Mercado Livre, na Shopee, na Amazon e no Google.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icones/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Radar">
 <title>Radar Marketplace</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<link rel="icon" type="image/svg+xml" href="/icones/icone.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="/icones/icone-192.png">
 <link rel="stylesheet" href="/estilo.css">
 </head>
 <body>
@@ -17,6 +26,8 @@
   </div>
 </section>
 
+<div class="folha-fundo hidden" id="folha-fundo"></div>
+<div class="folha hidden" id="folha" role="dialog" aria-label="Menu"></div>
 <div class="app hidden" id="app">
   <aside class="lado">
     <div class="marca">📡 Radar<span>Marketplace</span></div>
@@ -24,20 +35,22 @@
       <div class="nav-grupo">Começar</div>
       <button data-aba="trilha"><span>🧭</span>Trilha</button>
       <div class="nav-grupo">Pesquisa</div>
-      <button data-aba="painel" class="ativo"><span>📊</span>Painel</button>
-      <button data-aba="pesquisar"><span>🔎</span>Pesquisar</button>
+      <button data-mob="1" data-aba="painel" class="ativo"><span>📊</span>Painel</button>
+      <button data-mob="1" data-aba="pesquisar"><span>🔎</span>Pesquisar</button>
       <button data-aba="lote"><span>📋</span>Lote</button>
       <button data-aba="vigiadas"><span>🔔</span>Vigiadas</button>
       <div class="nav-grupo">Meu negócio</div>
-      <button data-aba="catalogo"><span>📦</span>Catálogo</button>
-      <button data-aba="simulador"><span>💵</span>Simulador</button>
+      <button data-mob="1" data-aba="catalogo"><span>📦</span>Catálogo</button>
+      <button data-mob="1" data-aba="simulador"><span>💵</span>Simulador</button>
       <button data-aba="loja"><span>🛒</span>Minha loja</button>
       <button data-aba="calendario"><span>📅</span>Calendário</button>
       <div class="nav-grupo">Ajustes</div>
       <button data-aba="taxas"><span>⚙️</span>Taxas</button>
+      <button type="button" id="nav-mais" class="so-cel"><span>☰</span>Mais</button>
     </nav>
     <div class="lado-rodape">
       <div class="canais-logos" id="logos-lado"></div>
+      <button class="link hidden" id="bt-instalar" type="button">📲 Instalar o app</button>
       <button class="link" id="tema" type="button">🌓 Tema</button>
       <button class="link" id="sair" type="button">🔒 Sair</button>
     </div>

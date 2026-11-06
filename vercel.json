@@ -5,6 +5,10 @@
     "api/pesquisa.js": { "maxDuration": 30 },
     "api/concorrentes.js": { "maxDuration": 30 }
   },
+  "headers": [
+    { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }, { "key": "Service-Worker-Allowed", "value": "/" }] },
+    { "source": "/manifest.webmanifest", "headers": [{ "key": "Content-Type", "value": "application/manifest+json" }] }
+  ],
   "crons": [
     { "path": "/api/monitorar", "schedule": "0 10 * * 1" }
   ]
