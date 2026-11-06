@@ -460,3 +460,11 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .aviso-rapido{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--ink);color:var(--card);padding:11px 16px;border-radius:12px;font-size:.88rem;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:all .2s;z-index:70;max-width:calc(100vw - 32px)}
 .aviso-rapido.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .aviso-rapido a{color:var(--card);text-decoration:underline;margin-left:4px}
+
+/* 📉 preço e procura no tempo */
+.tempo-tit{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.tempo-kpis{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.82rem;color:var(--ink-2);margin-bottom:6px}
+.tempo-leg{display:flex;gap:14px;font-size:.75rem;color:var(--muted);margin-top:2px}
+.tempo-leg i{display:inline-block;width:14px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.tempo-leg i.l{height:2px;background:var(--brand)}
+.tempo-leg i.f{background:var(--brand);opacity:.18}

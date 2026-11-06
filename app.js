@@ -397,6 +397,7 @@ function secaoDoBloco(el) {
   if (el.id === 'resposta') return 'topo';
   if (el.classList.contains('g-hero')) return 'resumo';
   if (id === 'card-onde' || id === 'card-plano') return 'resumo';
+  if (id === 'card-serie') return 'resumo';
   if (id === 'card-margem' || id === 'card-preco') return 'lucro';
   if (id === 'card-titulos' || id === 'card-fotos') return 'anuncio';
   if (id === 'card-palavras' || el.querySelector('#bt-ir-palavras')) return 'palavras';
@@ -679,14 +680,61 @@ async function buscarSerie(termo) {
 }
 async function pintarSerie(termo) {
   const box = $('#card-serie'); if (!box) return;
-  const p = await buscarSerie(termo);
+  box.classList.remove('hidden');
+  box.innerHTML = '<h2>📉 Preço e procura no tempo</h2><div class="grid g2" style="margin-top:0"><div id="tempo-preco"><div class="vazio"><span class="carregando"></span>carregando…</div></div><div id="tempo-procura"><div class="vazio"><span class="carregando"></span>consultando o Google Trends…</div></div></div>';
+  const [p, tr] = await Promise.all([buscarSerie(termo), api('/api/tendencias?termo=' + encodeURIComponent(termo)).catch(e => ({ indisponivel: true, motivo: e.message }))]);
   if (!$('#card-serie') || !S.atual || slug(S.atual.termo) !== slug(termo)) return;
   const vig = vigiada(termo);
-  if (!vig && p.length < 2) { box.classList.add('hidden'); return; }
-  box.classList.remove('hidden');
-  box.innerHTML = '<h2>📉 Evolução no tempo <span class="tag">' + (vig ? '🔔 checado toda segunda' : 'pesquisas anteriores') + '</span></h2><div class="grid g2" style="margin-top:0">' +
-    '<div><div class="small muted">Preço mais comum</div>' + linha(p, 'precoMediano', brl) + '</div>' +
-    '<div><div class="small muted">Nota de validação</div>' + linha(p, 'nota', v => Math.round(v)) + '</div></div>';
+  // preço: faixa mínimo–máximo e o preço comum, a cada checagem
+  const q = p.filter(x => x.precoMediano != null);
+  const ult = q[q.length - 1] || {}, pri = q[0] || {};
+  const varTxt = q.length >= 2 && pri.precoMediano ? (() => { const dl = (ult.precoMediano - pri.precoMediano) / pri.precoMediano * 100; return Math.abs(dl) < 3 ? 'estável' : (dl > 0 ? '▲ subiu ' : '▼ caiu ') + Math.abs(Math.round(dl)) + '%'; })() : null;
+  $('#tempo-preco').innerHTML = '<div class="tempo-tit"><b>Preço dos concorrentes</b> <button type="button" class="ajuda" data-txt="A cada pesquisa e a cada checagem de segunda, o Radar anota o menor preço, o maior e o mais comum. A faixa clara vai do mínimo ao máximo; a linha é o preço mais comum.">?</button></div>' +
+    (q.length ? '<div class="tempo-kpis"><span>Mín. <b>' + brl(ult.precoMin) + '</b></span><span>Comum <b>' + brl(ult.precoMediano) + '</b></span><span>Máx. <b>' + brl(ult.precoMax) + '</b></span>' + (varTxt ? '<span>Desde ' + dataBR(pri.em) + ': <b class="' + (/subiu/.test(varTxt) ? 'var-pos' : /caiu/.test(varTxt) ? 'var-neg' : '') + '">' + varTxt + '</b></span>' : '') + '</div>' : '') +
+    faixaNoTempo(q) +
+    (!vig ? '<p class="small muted">Toque em <b>🔔 Vigiar</b> lá em cima e o Radar anota o preço toda segunda sozinho.</p>' : '<p class="small muted">🔔 Anotado toda segunda.</p>');
+  // procura: Google Trends
+  const el = $('#tempo-procura');
+  if (!tr || tr.indisponivel || !tr.pontos || !tr.pontos.length || tr.semDados) {
+    el.innerHTML = '<div class="tempo-tit"><b>Procura no Google</b></div><div class="vazio">' + esc(tr && tr.semDados ? 'O Google Trends não tem volume suficiente para essa palavra. Tente uma mais curta (ex.: "fita dupla face").' : (tr && tr.motivo) || 'Google Trends indisponível agora.') + '</div>';
+    return;
+  }
+  const TEND = { subindo: ['▲ subindo', 'var-pos'], caindo: ['▼ caindo', 'var-neg'], 'estável': ['estável', ''] }[tr.tendencia] || ['—', ''];
+  el.innerHTML = '<div class="tempo-tit"><b>Procura no Google</b> <span class="small muted">últimos 12 meses · Brasil</span> <button type="button" class="ajuda" data-txt="Do Google Trends: quanto as pessoas pesquisam essa palavra, de 0 a 100 (100 = a semana de maior procura no período). Não é número de buscas, é a comparação no tempo. Mostra se a procura está subindo e quais meses vendem mais.">?</button></div>' +
+    '<div class="tempo-kpis"><span>Últimos 3 meses: <b class="' + TEND[1] + '">' + TEND[0] + (tr.variacao3m != null ? ' (' + (tr.variacao3m > 0 ? '+' : '') + tr.variacao3m + '%)' : '') + '</b></span><span>Meses fortes: <b>' + esc((tr.mesesFortes || []).join(', ')) + '</b></span><span>Fracos: <b>' + esc((tr.mesesFracos || []).join(', ')) + '</b></span></div>' +
+    procuraNoTempo(tr.pontos) +
+    '<p class="small muted">Fonte: Google Trends' + (tr.antigo ? ' (última consulta que deu certo, de ' + dataBR(tr.em) + ')' : tr.em ? ', consultado em ' + dataBR(tr.em) : '') + '. Produza mais antes dos meses fortes.</p>';
+}
+function faixaNoTempo(p) {
+  if (p.length < 2) return '<div class="vazio">' + (p.length ? 'Primeiro preço anotado em ' + dataBR(p[0].em) + '. O gráfico aparece a partir da próxima checagem.' : 'Sem histórico ainda.') + '</div>';
+  const L = 600, H = 190, e = 64, b = 24, t = 10, d = 12;
+  const vs = p.flatMap(x => [x.precoMin, x.precoMax, x.precoMediano]).filter(v => v != null);
+  const min = Math.min(...vs), max = Math.max(...vs), pad = (max - min) * 0.1 || max * 0.1 || 1, lo = Math.max(0, min - pad), hi = max + pad;
+  const X = i => e + i / (p.length - 1) * (L - e - d), Y = v => t + (1 - (v - lo) / (hi - lo)) * (H - t - b);
+  const lim = (x, k) => x[k] != null ? x[k] : x.precoMediano;
+  let s = '<svg class="graf" viewBox="0 0 ' + L + ' ' + H + '" role="img" aria-label="Preço mínimo, comum e máximo no tempo">';
+  [lo, (lo + hi) / 2, hi].forEach(v => { s += '<line class="grade" x1="' + e + '" x2="' + (L - d) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text x="' + (e - 8) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + esc(brl0(v)) + '</text>'; });
+  s += '<polygon fill="var(--brand)" fill-opacity=".14" points="' + p.map((x, i) => X(i) + ',' + Y(lim(x, 'precoMax'))).concat(p.map((x, i) => X(i) + ',' + Y(lim(x, 'precoMin'))).reverse()).join(' ') + '"/>';
+  s += '<polyline fill="none" stroke="var(--brand)" stroke-width="2" points="' + p.map((x, i) => X(i) + ',' + Y(x.precoMediano)).join(' ') + '"/>';
+  p.forEach((x, i) => { s += '<g class="alvo" data-tip="' + esc('<b>' + dataBR(x.em) + '</b><br>Mín. ' + brl(x.precoMin) + '<br>Comum ' + brl(x.precoMediano) + '<br>Máx. ' + brl(x.precoMax)) + '"><rect x="' + (X(i) - 14) + '" y="' + t + '" width="28" height="' + (H - t - b) + '" fill="transparent"/><circle cx="' + X(i) + '" cy="' + Y(x.precoMediano) + '" r="5" fill="var(--brand)" stroke="var(--card)" stroke-width="2"/></g>'; });
+  s += '<text x="' + e + '" y="' + (H - 4) + '">' + dataBR(p[0].em) + '</text><text x="' + (L - d) + '" y="' + (H - 4) + '" text-anchor="end">' + dataBR(p[p.length - 1].em) + '</text>';
+  return s + '</svg><div class="tempo-leg"><span><i class="l"></i>preço mais comum</span><span><i class="f"></i>faixa do menor ao maior</span></div>';
+}
+function procuraNoTempo(pts) {
+  const L = 600, H = 170, e = 34, b = 24, t = 10, d = 8, MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const X = i => e + i / Math.max(1, pts.length - 1) * (L - e - d), Y = v => t + (1 - v / 100) * (H - t - b);
+  let s = '<svg class="graf" viewBox="0 0 ' + L + ' ' + H + '" role="img" aria-label="Procura no Google nos últimos 12 meses">';
+  [0, 50, 100].forEach(v => { s += '<line class="grade" x1="' + e + '" x2="' + (L - d) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text x="' + (e - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + v + '</text>'; });
+  s += '<polygon fill="#1f9d55" fill-opacity=".12" points="' + X(0) + ',' + Y(0) + ' ' + pts.map((x, i) => X(i) + ',' + Y(x.valor)).join(' ') + ' ' + X(pts.length - 1) + ',' + Y(0) + '"/>';
+  s += '<polyline fill="none" stroke="#1f9d55" stroke-width="2" points="' + pts.map((x, i) => X(i) + ',' + Y(x.valor)).join(' ') + '"/>';
+  let mesAnt = null;
+  pts.forEach((x, i) => {
+    const m = Number(x.data.slice(5, 7)) - 1;
+    if (m !== mesAnt && i > 0 && m % 2 === 0) s += '<text x="' + X(i) + '" y="' + (H - 4) + '" text-anchor="middle">' + MES[m] + '</text>';
+    mesAnt = m;
+    s += '<g class="alvo" data-tip="' + esc('Semana de ' + dataBR(x.data) + ': ' + x.valor) + '"><rect x="' + (X(i) - 6) + '" y="' + t + '" width="12" height="' + (H - t - b) + '" fill="transparent"/></g>';
+  });
+  return s + '</svg>';
 }
 async function carregarSeries(lista) { await Promise.all(lista.map(v => buscarSerie(v.termo))); }
 function variacao(p, campo, fmt, inverter) {
@@ -1166,7 +1214,7 @@ const AJUDA = [
   ['google shopping', 'Ofertas do Google Shopping: quem vende, por quanto e com qual avaliação. Ajuda a ver lojas fora dos marketplaces.'],
   ['distribuição de preços', 'Quantos preços caem em cada faixa de valor. A coluna mais alta é onde a maioria dos concorrentes está.'],
   ['o que a concorrência vende', 'Fotos dos produtos dos concorrentes no Google Shopping. Toque para abrir o anúncio.'],
-  ['evolução no tempo', 'Como o preço mais comum e a nota mudaram a cada checagem. Aparece quando a palavra é vigiada ou foi pesquisada mais de uma vez.'],
+  ['preço e procura no tempo', 'À esquerda, o preço dos concorrentes ao longo do tempo (menor, mais comum e maior), anotado pelo Radar a cada pesquisa e toda segunda nas palavras vigiadas. À direita, a procura no Google Trends nos últimos 12 meses: se está subindo e quais meses são mais fortes.'],
   ['seo', 'As 10 primeiras páginas do Google para essa palavra. Muitos marketplaces no topo = o povo busca para comprar.'],
   ['qual palavra-chave performa melhor', 'Pesquisa de uma vez todas as variações que o povo digita (Google, Mercado Livre, Amazon) e dá uma força de 0 a 100 para cada uma: busca (até 40) + vendas do anúncio que mais vende (até 40) + pouca concorrência (até 20). A 1ª vai no começo do título.'],
   ['força', 'Nota de 0 a 100 da palavra para SEO: quanto o povo busca, quanto vende e quanta disputa tem.'],
