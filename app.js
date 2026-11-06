@@ -260,11 +260,25 @@ function pintarResultado(d, salvo) {
   const dom = l => { try { return new URL(l).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
   const comFoto = d.shopping.itens.filter(i => i.imagem);
   const vig = vigiada(d.termo);
+  const NIVEL = { validado: ['✅', 'Sim, vende', 'ok'], nicho: ['🟡', 'Vende pouco (nicho)', 'meio'], fraco: ['🔴', 'Poucos sinais de venda', 'ruim'] }[v.nivel] || ['•', v.nivel, ''];
+  const maxV = Math.max(0, ...Object.values(mp).map(m => m.maxVendidos || 0));
   $('#resultado').innerHTML =
+  '<div class="resposta" id="resposta">' +
+    '<div class="resp-topo"><div><div class="resp-termo">“' + esc(d.termo) + '”</div><div class="small muted">A resposta rápida. Os detalhes estão nas abas lá embaixo.</div></div>' +
+      '<div class="acoes"><button type="button" class="' + (vig ? 'pri' : 'sec') + '" id="bt-vigiar">' + (vig ? '🔔 Vigiando' : '🔔 Vigiar') + '</button><button type="button" id="bt-atualizar">↻ Atualizar</button><button type="button" id="bt-compartilhar">🔗 Compartilhar</button></div></div>' +
+    '<div class="small" id="link-relatorio" style="text-align:left"></div>' +
+    '<div class="resp-grade">' +
+      '<div class="resp resp-' + NIVEL[2] + '"><div class="resp-p">1. Vende?</div><div class="resp-v">' + NIVEL[0] + ' ' + NIVEL[1] + '</div><div class="resp-s">' + (maxV ? 'O anúncio que mais vende tem ' + num(maxV) + '+ vendas' : 'Nenhum anúncio mostra volume de vendas') + ' · nota ' + v.nota + '/100</div></div>' +
+      '<div class="resp"><div class="resp-p">2. Onde vender?</div><div class="resp-v" id="resp-onde">…</div><div class="resp-s" id="resp-onde-s"></div></div>' +
+      '<div class="resp"><div class="resp-p">3. Por quanto?</div><div class="resp-v" id="resp-preco">…</div><div class="resp-s" id="resp-preco-s"></div></div>' +
+      '<div class="resp resp-lucro" id="resp-lucro-box"><div class="resp-p">4. Quanto sobra por venda?</div><div class="resp-v" id="resp-lucro">…</div><div class="resp-s" id="resp-lucro-s"></div>' +
+        '<label class="resp-custo">Seu custo por unidade <span>R$ <input type="number" step="0.01" min="0" inputmode="decimal" id="r-custo" placeholder="0,00"></span></label></div>' +
+    '</div>' +
+    '<div class="resp-passo" id="resp-passo"></div>' +
+  '</div>' +
   '<div class="grid g-hero" style="margin-top:0">' +
     '<div class="card score">' + gauge(v.nota, v.nivel) + nivelTag(v.nivel) +
       '<div class="small muted">“' + esc(d.termo) + '” · concorrência <b>' + esc(v.concorrencia) + '</b></div>' +
-      '<div class="acoes"><button type="button" class="' + (vig ? 'pri' : 'sec') + '" id="bt-vigiar">' + (vig ? '🔔 Vigiando' : '🔔 Vigiar') + '</button><button type="button" id="bt-atualizar">↻ Atualizar</button><button type="button" id="bt-compartilhar">🔗 Compartilhar relatório</button></div><div class="small" id="link-relatorio" style="text-align:left"></div>' +
       '<div class="aviso">Pesquisado em ' + new Date(d.geradoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) + (d.doCache ? ' · já estava salvo' : '') + '</div>' +
     '</div>' +
     '<div class="card"><h2>📊 Visão geral</h2><div class="mini-kpis">' +
@@ -325,9 +339,39 @@ function pintarResultado(d, salvo) {
   organizarEmAbas();
 }
 
+// ✅ Resposta rápida: as 4 perguntas que importam, em linguagem simples
+function atualizarResposta(d, r, e) {
+  if (!$('#resposta')) return;
+  const rec = (S.extras && S.extras.recomendacao) || (window.Recomendacao ? Recomendacao.recomendar(d, null) : null);
+  const k = rec ? (rec.vencedor || rec.ranking[0].id) : 'mercadolivre';
+  const pi = ((S.extras && S.extras.precoIdeal) || {})[k] || {};
+  const u0 = r[k] || {}, acima = pi.situacao === 'acima', preco = (!acima && pi.sugerido) || pi.p50 || u0.preco || d.precos.mediana || 0;
+  $('#resp-onde').innerHTML = logo(k) + ' ' + esc(CANAIS[k].nome);
+  $('#resp-onde-s').textContent = rec && rec.vencedor ? 'Nota ' + rec.ranking[0].nota + '/100. ' + (rec.ranking[1] ? 'Depois: ' + rec.ranking[1].nome + '.' : '') : 'Nenhum canal se destaca: comece pelo que tem mais anúncios.';
+  $('#resp-preco').textContent = brl(preco);
+  $('#resp-preco-s').textContent = acima ? 'É o que o mercado cobra. Para a sua meta de margem você precisaria de ' + brl(u0.precoMinimo) + ', acima dos concorrentes.' : pi.p50 ? 'O preço comum no ' + CANAIS[k].nome + ' é ' + brl(pi.p50) + '.' : 'Preço mais comum do mercado.';
+  const box = $('#resp-lucro-box'), rc = $('#r-custo');
+  if (rc && document.activeElement !== rc) rc.value = e.custo || '';
+  let passo, ir = null;
+  if (!e.custo) {
+    $('#resp-lucro').textContent = '?'; box.className = 'resp resp-lucro';
+    $('#resp-lucro-s').textContent = 'Digite o seu custo aqui embaixo e a conta aparece na hora.';
+    passo = 'Coloque o seu custo de produção no quadro 4 para saber se vale a pena.';
+  } else {
+    const u = Margem.calcularCanal(preco, e.custo, e.embalagem, cfg().imposto, u0.taxaUsada || cfg().taxas[k]);
+    $('#resp-lucro').textContent = brl(u.lucro); box.className = 'resp resp-lucro ' + (u.lucro >= 0 ? 'resp-ok' : 'resp-ruim');
+    $('#resp-lucro-s').textContent = 'Vendendo a ' + brl(preco) + ' no ' + CANAIS[k].nome + ', já tirando taxas, frete e imposto. 100 vendas = ' + brl0(u.lucro * 100) + '.';
+    if (u.lucro < 0 || acima) { passo = (u.lucro < 0 ? 'No preço do mercado dá prejuízo.' : 'No preço do mercado a margem fica abaixo da sua meta.') + ' O mínimo para a sua meta no ' + CANAIS[k].nome + ' é ' + brl(u0.precoMinimo) + '. Veja as opções (kit, outro canal) em Lucro e preço.'; ir = ['lucro', 'Ver lucro e preço']; }
+    else if (d.validacao.nivel === 'fraco') { passo = 'Dá lucro, mas há poucos sinais de venda com essa palavra. Teste outras palavras parecidas.'; ir = ['palavras', 'Ver palavras-chave']; }
+    else { passo = 'Comece pelo ' + CANAIS[k].nome + ' a ' + brl(preco) + '. Próximo passo: montar o anúncio.'; ir = ['anuncio', 'Montar o anúncio']; }
+  }
+  $('#resp-passo').innerHTML = '👉 ' + esc(passo) + (ir ? ' <button type="button" class="sec" data-ir-sec="' + ir[0] + '">' + ir[1] + ' →</button>' : '');
+  const b = $('#resp-passo [data-ir-sec]'); if (b) b.onclick = () => { mostrarSecao(b.dataset.irSec); $('.sec-abas').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+}
+
 // 🗂️ A pesquisa em abas: nota e visão geral sempre no topo, o resto separado por assunto
 const SECOES = [
-  ['resumo', '🏆 Resumo', 'Onde vender e o plano de ação para este produto.'],
+  ['resumo', '📊 Nota e canais', 'De onde vem a nota, a comparação entre os canais e o plano de ação.'],
   ['lucro', '💰 Lucro e preço', 'Seu custo, quanto sobra por venda, simulador, kits e o preço ideal em cada canal.'],
   ['concorrencia', '🥊 Concorrência', 'Quem já vende, por quanto, o que vende e do que os compradores reclamam.'],
   ['palavras', '🔑 Palavras-chave', 'O que o povo digita, o top 10 do Google e qual palavra performa melhor.'],
@@ -335,7 +379,8 @@ const SECOES = [
 ];
 function secaoDoBloco(el) {
   const id = el.id || '';
-  if (el.classList.contains('g-hero')) return 'topo';
+  if (el.id === 'resposta') return 'topo';
+  if (el.classList.contains('g-hero')) return 'resumo';
   if (id === 'card-onde' || id === 'card-plano') return 'resumo';
   if (id === 'card-margem' || id === 'card-preco') return 'lucro';
   if (id === 'card-titulos' || id === 'card-fotos') return 'anuncio';
@@ -351,7 +396,9 @@ function organizarEmAbas() {
   SECOES.forEach(([k, , desc]) => { const c = document.createElement('div'); c.className = 'secao' + (k === atual ? '' : ' hidden'); c.dataset.secao = k; c.innerHTML = '<p class="sec-desc">' + esc(desc) + '</p>'; conts[k] = c; });
   let topo = null;
   blocos.forEach(el => { const k = secaoDoBloco(el); if (k === 'topo') { topo = el; return; } conts[k].appendChild(el); });
-  if (topo) topo.after(barra); else box.prepend(barra);
+  const tit = document.createElement('div'); tit.className = 'detalhes-tit'; tit.innerHTML = '<b>Detalhes</b><span class="small muted">para quem quer se aprofundar</span>';
+  if (topo) topo.after(tit); else box.prepend(tit);
+  tit.after(barra);
   let ref = barra; SECOES.forEach(([k]) => { ref.after(conts[k]); ref = conts[k]; });
   barra.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => mostrarSecao(b.dataset.sec, true));
 }
@@ -540,9 +587,11 @@ function pintarMargem(d) {
       $$('#m-kits [data-pesq]').forEach(b => b.onclick = () => { $('#q').value = b.dataset.pesq; pesquisar(b.dataset.pesq); });
     } else { $('#m-kits').innerHTML = ''; S.extras.kits = null; }
     pintarPrecoIdeal(d, custo ? r : null);
+    atualizarResposta(d, r, e);
     pintarPlano(d);
   }
   ['#m-custo', '#m-emb', '#m-meta', '#m-peso', '#m-c', '#m-l', '#m-a'].forEach(id => $(id).oninput = calc);
+  const rc = $('#r-custo'); if (rc) { rc.value = $('#m-custo').value; rc.oninput = () => { $('#m-custo').value = rc.value; calc(); }; }
   $('#m-salvar').onclick = async () => {
     try {
       S.cfg = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'custo', termo: d.termo, custo: ler('#m-custo'), embalagem: ler('#m-emb'), meta: ler('#m-meta'), pesoKg: ler('#m-peso'), comp: ler('#m-c'), larg: ler('#m-l'), alt: ler('#m-a'), detalhes: ($('#an-detalhes') && $('#an-detalhes').value) || salvo.detalhes || '' }) });
