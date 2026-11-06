@@ -448,3 +448,15 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
   .lado .marca img{width:30px;height:30px}
   .rod-instalar{padding:8px}
 }
+
+/* ⭐ monitorar concorrente */
+.lista li{position:relative}
+.lista li:has(.estrela){padding-right:44px}
+.estrela{position:absolute;top:6px;right:6px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:1.15rem;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0;transition:transform .12s}
+.estrela:hover{color:#e0a10b;border-color:#e0a10b}
+.estrela:active{transform:scale(.9)}
+.estrela.on{color:#fff;background:#f5a524;border-color:#f5a524}
+.estrela:disabled{opacity:.6}
+.aviso-rapido{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:var(--ink);color:var(--card);padding:11px 16px;border-radius:12px;font-size:.88rem;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:all .2s;z-index:70;max-width:calc(100vw - 32px)}
+.aviso-rapido.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.aviso-rapido a{color:var(--card);text-decoration:underline;margin-left:4px}

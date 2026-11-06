@@ -161,6 +161,7 @@ async function carregar() {
     S.nuvem = !!h.nuvem; if (S.nuvem) { S.hist = h.itens || []; ls.set('radar_hist', S.hist); }
     S.cfg = c;
   } catch (e) { erro(e.message); }
+  carregarMonitorados();
   statusRodape();
   if (abaAtual === 'painel') pintarPainel();
   if (abaAtual === 'vigiadas') pintarVigiadas();
@@ -257,7 +258,7 @@ async function abrir(termo) {
 
 function listaMp(m) {
   if (!m.itens.length) return '<div class="vazio">Nenhum resultado desse termo aqui.</div>';
-  return '<ul class="lista">' + m.itens.map(i => '<li><a class="t" href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.titulo || i.link) + '</a><div class="m">' +
+  return '<ul class="lista">' + m.itens.map(i => '<li>' + (i.anuncio ? botaoEstrela(i.link, i.titulo) : '') + '<a class="t" href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.titulo || i.link) + '</a><div class="m">' +
     (i.preco != null ? '<span class="preco">' + brl(i.preco) + '</span>' : '') + (i.vendidos != null ? '<span>🔥 ' + num(i.vendidos) + '+ vendidos</span>' : '') +
     (i.nota != null ? '<span>⭐ ' + String(i.nota).replace('.', ',') + (i.avaliacoes ? ' (' + num(i.avaliacoes) + ')' : '') + '</span>' : '') +
     (i.anuncio ? '<span class="badge">anúncio</span>' : '<span class="badge cinza">lista/categoria</span>') + '</div></li>').join('') + '</ul>';
@@ -387,7 +388,7 @@ function atualizarResposta(d, r, e) {
 const SECOES = [
   ['resumo', '📊 Nota e canais', 'De onde vem a nota, a comparação entre os canais e o plano de ação.'],
   ['lucro', '💰 Lucro e preço', 'Seu custo, quanto sobra por venda, simulador, kits e o preço ideal em cada canal.'],
-  ['concorrencia', '🥊 Concorrência', 'Quem já vende, por quanto, o que vende e do que os compradores reclamam.'],
+  ['concorrencia', '🥊 Concorrência', 'Quem já vende, por quanto, o que vende e do que os compradores reclamam. Toque na ☆ de um anúncio para monitorar o concorrente toda semana.'],
   ['palavras', '🔑 Palavras-chave', 'O que o povo digita, o top 10 do Google e qual palavra performa melhor.'],
   ['anuncio', '✍️ Anúncio', 'Anúncio pronto para os 3 canais e as fotos que vendem.'],
 ];
@@ -729,7 +730,7 @@ async function pintarVigiadas() {
 async function pintarConcorrentes() {
   const box = $('#conc-lista'); if (!box) return;
   let itens = [];
-  try { itens = (await api('/api/concorrentes')).itens || []; } catch (e) { box.innerHTML = '<div class="vazio">' + esc(e.message) + '</div>'; return; }
+  try { itens = (await api('/api/concorrentes')).itens || []; S.monitorados = new Map(itens.map(c => [c.link, c.id])); } catch (e) { box.innerHTML = '<div class="vazio">' + esc(e.message) + '</div>'; return; }
   if (!itens.length) { box.innerHTML = '<div class="vazio">Nenhum concorrente ainda. Cole o link de um anúncio que vende o mesmo que você.</div>'; return; }
   const ult = p => p.filter(x => x.achou).slice(-1)[0] || {};
   box.innerHTML = '<div class="tabela-wrap"><table><thead><tr><th>Anúncio</th><th class="num">Preço</th><th class="num">Vendidos</th><th class="num">Nota</th><th>Preço no tempo</th><th>Variação</th><th class="num">Checado</th><th></th></tr></thead><tbody>' +
@@ -1372,6 +1373,43 @@ addEventListener('keydown', e => { if (e.key === 'Escape') abrirGaveta(false); }
 (() => { let x0 = null; const l = $('#lado');
   l.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
   l.addEventListener('touchend', e => { if (x0 != null && x0 - e.changedTouches[0].clientX > 60) abrirGaveta(false); x0 = null; }, { passive: true }); })();
+
+// ⭐ Monitorar concorrente: estrela nos anúncios da pesquisa (vai para Vigiadas e é checado toda segunda)
+S.monitorados = new Map();   // link -> id
+function botaoEstrela(link, titulo) {
+  const on = S.monitorados.has(link);
+  return '<button type="button" class="estrela' + (on ? ' on' : '') + '" data-estrela="' + esc(link) + '" data-titulo="' + esc(String(titulo || '').slice(0, 60)) + '" aria-pressed="' + on + '" title="' + (on ? 'Monitorando: toque para parar' : 'Monitorar este concorrente') + '">' + (on ? '★' : '☆') + '</button>';
+}
+async function carregarMonitorados() {
+  try { const r = await api('/api/concorrentes'); S.monitorados = new Map((r.itens || []).map(c => [c.link, c.id])); } catch (e) { return; }
+  $$('[data-estrela]').forEach(atualizarEstrela);
+}
+function atualizarEstrela(b) {
+  const on = S.monitorados.has(b.dataset.estrela);
+  b.classList.toggle('on', on); b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', on);
+  b.title = on ? 'Monitorando: toque para parar' : 'Monitorar este concorrente';
+}
+function avisoRapido(txt) {
+  let t = $('#aviso-rapido'); if (!t) { t = document.createElement('div'); t.id = 'aviso-rapido'; t.className = 'aviso-rapido'; document.body.appendChild(t); }
+  t.innerHTML = txt; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 3200);
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('[data-estrela]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const link = b.dataset.estrela, id = S.monitorados.get(link); b.disabled = true;
+  try {
+    if (id) {
+      await api('/api/concorrentes', { method: 'POST', body: JSON.stringify({ acao: 'remover', id }) });
+      S.monitorados.delete(link); avisoRapido('Parou de monitorar esse concorrente.');
+    } else {
+      const r = await api('/api/concorrentes', { method: 'POST', body: JSON.stringify({ acao: 'adicionar', link, apelido: b.dataset.titulo, termo: S.atual ? S.atual.termo : '' }) });
+      S.monitorados.set(link, r.item.id); marcarTrilha('vigiar');
+      avisoRapido('★ Monitorando. O Radar checa preço e vendas toda segunda. <a href="#" id="aviso-ver">Ver em Vigiadas</a>');
+      const v = $('#aviso-ver'); if (v) v.onclick = ev => { ev.preventDefault(); irPara('vigiadas'); };
+    }
+  } catch (err) { avisoRapido('⚠️ ' + esc(err.message)); }
+  b.disabled = false; $$('[data-estrela]').forEach(atualizarEstrela);
+}, true);
 
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
