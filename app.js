@@ -186,7 +186,9 @@ function pintarPainel() {
   const top = h.slice().sort((a, b) => b.nota - a.nota).slice(0, 10);
   const totNivel = h.length;
   box.innerHTML =
-    '<h1 class="titulo-aba">Painel do time</h1><p class="sub-aba">' + (S.nuvem ? '☁️ Todas as pesquisas do time, na nuvem.' : 'Pesquisas salvas neste navegador.') + '</p>' +
+    '<h1 class="titulo-aba">Histórico</h1><p class="sub-aba">' + (S.nuvem ? '☁️ Todas as pesquisas e comparações do time, na nuvem. Abrir uma pesquisa salva não gasta crédito.' : 'Pesquisas salvas neste navegador.') + '</p>' +
+    '<div class="hist-busca"><input id="hist-q" type="search" placeholder="🔎 Procurar no histórico (pesquisas e comparações de palavras)" autocomplete="off"></div>' +
+    '<div id="hist-achados"></div>' +
     '<div class="grid g4">' +
       '<div class="kpi"><div class="ic">🔎</div><div class="l">Pesquisas</div><div class="v">' + h.length + '</div><div class="d">' + ultimos7 + ' nos últimos 7 dias</div></div>' +
       '<div class="kpi"><div class="ic">✔</div><div class="l">Validados</div><div class="v">' + cont.validado + '</div><div class="d">' + pct(cont.validado / h.length * 100) + ' das pesquisas</div></div>' +
@@ -210,7 +212,10 @@ function pintarPainel() {
       '<div class="card"><h2>🔔 Vigiadas <span class="tag"><a href="#" id="ir-vig">ver todas</a></span></h2><div id="painel-vig">' +
         (vig.length ? '<div class="vazio"><span class="carregando"></span>carregando…</div>' : '<div class="vazio">Nenhuma palavra vigiada. Abra uma pesquisa e toque em <b>🔔 Vigiar</b>.</div>') + '</div></div>' +
     '</div>' +
+    '<div class="card" style="margin-top:14px" id="card-comparacoes"><h2>🔑 Comparações de palavras-chave <span class="tag">toque para abrir o ranking</span></h2><div class="vazio"><span class="carregando"></span>carregando…</div></div>' +
     '<div class="card" style="margin-top:14px"><h2>📋 Todas as pesquisas <span class="tag">toque numa linha para abrir</span></h2>' + tabelaPesquisas(h) + '</div>';
+  pintarComparacoes();
+  $('#hist-q').oninput = () => buscarNoHistorico($('#hist-q').value);
   const iv = $('#ir-vig'); if (iv) iv.onclick = e => { e.preventDefault(); irPara('vigiadas'); };
   pintarAlertas('#painel-alertas', 5);
   if (vig.length) carregarSeries(vig).then(() => { const b = $('#painel-vig'); if (b) b.innerHTML = listaVigiadas(vig.slice(0, 6), true); });
@@ -417,6 +422,39 @@ function pintarCliente() {
     '<p class="aviso">Nada aqui identifica pessoas: são temas que aparecem nas avaliações, perguntas, reclamações e vídeos sobre o produto, mais a procura no Google por estado.</p>';
 }
 
+// 🔑 Comparações de palavras-chave salvas (nuvem do time)
+async function carregarComparacoes() {
+  if (S.palavrasIdx) return S.palavrasIdx;
+  try { S.palavrasIdx = (await api('/api/historico?palavras=1')).itens || []; } catch (e) { S.palavrasIdx = []; }
+  return S.palavrasIdx;
+}
+function linhasComparacoes(itens) {
+  return '<div class="tabela-wrap"><table><thead><tr><th>Pesquisa</th><th>Palavra mais forte</th><th class="num">Força</th><th class="num">Palavras</th><th class="num">Data</th></tr></thead><tbody>' +
+    itens.map(x => '<tr class="clic" data-comparacao="' + esc(x.termo) + '"><td><b>' + esc(x.termo) + '</b></td><td>🥇 ' + esc(x.melhor ? x.melhor.termo : '—') + '</td><td class="num"><b>' + (x.melhor && x.melhor.total != null ? x.melhor.total : '—') + '</b></td><td class="num">' + (x.n || '—') + '</td><td class="num">' + dataBR(x.em) + '</td></tr>').join('') + '</tbody></table></div>';
+}
+async function pintarComparacoes() {
+  const itens = await carregarComparacoes(), box = $('#card-comparacoes'); if (!box) return;
+  box.innerHTML = '<h2>🔑 Comparações de palavras-chave <span class="tag">' + itens.length + ' · toque para abrir o ranking</span></h2>' +
+    (itens.length ? linhasComparacoes(itens) : '<div class="vazio">Nenhuma comparação ainda. Numa pesquisa, abra a aba 🔑 Palavras-chave e toque em <b>Pesquisar e comparar</b>.</div>');
+}
+async function abrirComparacao(termo) {
+  await abrir(termo);
+  mostrarSecao('palavras'); destacar('#card-palavras');
+}
+document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-comparacao]'); if (t) { e.stopPropagation(); abrirComparacao(t.dataset.comparacao); } }, true);
+// 🔎 Procurar no histórico: pesquisas, comparações e as palavras dentro de cada comparação
+async function buscarNoHistorico(q) {
+  const box = $('#hist-achados'); if (!box) return;
+  const n = String(q || '').trim().toLowerCase(); if (n.length < 2) { box.innerHTML = ''; return; }
+  const comps = await carregarComparacoes();
+  if ($('#hist-q') && $('#hist-q').value.trim().toLowerCase() !== n) return;
+  const pesq = S.hist.filter(x => String(x.termo).toLowerCase().includes(n));
+  const cmp = comps.filter(x => String(x.termo).toLowerCase().includes(n) || (x.melhor && String(x.melhor.termo).toLowerCase().includes(n)));
+  box.innerHTML = '<div class="card hist-res"><h2>Resultado para “' + esc(q.trim()) + '” <span class="tag">' + pesq.length + ' pesquisas · ' + cmp.length + ' comparações</span></h2>' +
+    (pesq.length ? tabelaPesquisas(pesq) : '') + (cmp.length ? '<div class="small muted" style="margin:12px 0 6px">Comparações de palavras-chave</div>' + linhasComparacoes(cmp) : '') +
+    (!pesq.length && !cmp.length ? '<div class="vazio">Nada encontrado. Faça a pesquisa lá em cima.</div>' : '') + '</div>';
+}
+
 // 🗂️ A pesquisa em abas: nota e visão geral sempre no topo, o resto separado por assunto
 const SECOES = [
   ['resumo', '📊 Nota e canais', 'De onde vem a nota, a comparação entre os canais e o plano de ação.'],
@@ -467,6 +505,13 @@ function pintarPalavras(d) {
   const NOMES = { sua: 'sua', google: 'Google', mercadolivre: 'ML', amazon: 'Amazon', relacionada: 'relac.' };
   const cabeca = '<h2>⚡ Qual palavra-chave performa melhor <span class="tag">' + todas.length + ' palavras encontradas</span></h2>';
   if (salvo && salvo.lista && salvo.lista.length && !box._escolher) return desenharRanking(salvo);
+  // nada neste aparelho: procura a comparação na nuvem do time (sem gastar crédito)
+  if (!box._escolher && !box._nuvem) {
+    box._nuvem = true;
+    api('/api/historico?palavras=1&termo=' + encodeURIComponent(d.termo)).then(r => {
+      if (r && r.lista && r.lista.length && S.atual === d && $('#card-palavras') === box && !box._escolher) { ls.set(chave, r); desenharRanking(r); }
+    }).catch(() => {});
+  }
   box.innerHTML = cabeca +
     '<p class="small muted">Marque as palavras e o Radar pesquisa todas sozinho (Mercado Livre, Shopee, Amazon e Google) e monta o ranking. Vem marcado o que aparece em mais lugares.</p>' +
     '<div class="pal-sel">' + todas.map((x, i) => '<label class="pal-op"><input type="checkbox" data-pal="' + i + '"' + (i < 15 ? ' checked' : '') + '><span>' + esc(x.termo) + '</span><span class="pal-f">' + x.fontes.map(f => '<i>' + NOMES[f] + '</i>').join('') + '</span></label>').join('') + '</div>' +
@@ -497,6 +542,7 @@ function pintarPalavras(d) {
     }
     const res = Palavras.ranking(itens); res.erros = itens.filter(x => x.erro); res.em = new Date().toISOString();
     ls.set(chave, res); box._escolher = false; desenharRanking(res); marcarTrilha('palavras');
+    api('/api/historico', { method: 'POST', body: JSON.stringify({ acao: 'palavras', termo: d.termo, resultado: res }) }).then(() => { S.palavrasIdx = null; }).catch(() => {});
   };
   function desenharRanking(r) {
     const b = r.melhor, PARTES = [['busca', 'Busca', 40], ['vendas', 'Vendas', 40], ['concorrencia', 'Concorrência', 20]];
@@ -1325,6 +1371,7 @@ const AJUDA = [
   ['preço × nota', 'Cada ponto é um produto: quanto mais alto, melhor a nota; quanto mais à direita, mais caro. Os melhores ficam em cima.'],
   ['como estão as ideias', 'Quantos produtos são validados, nicho ou fracos.'],
   ['anúncios encontrados por canal', 'Soma dos anúncios encontrados em todas as pesquisas, por marketplace.'],
+  ['comparações de palavras-chave', 'Todas as comparações de palavras-chave que o time já fez, guardadas na nuvem. Toque numa linha para abrir o ranking de novo, sem gastar crédito.'],
   ['todas as pesquisas', 'A lista completa. Toque numa linha para abrir a pesquisa salva (não gasta crédito).'],
   // outras abas
   ['simulador de faturamento', 'Conta rápida: se eu vender X unidades a R$ Y, quanto entra e quanto sobra no bolso em cada canal.'],

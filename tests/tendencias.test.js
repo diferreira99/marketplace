@@ -55,3 +55,16 @@ test('API: guarda por 7 dias e avisa quando o Google limita', async () => {
   r = res(); await api({ method: 'GET', headers: H, query: { termo: 'outra palavra', tendencia: '1' } }, r, { armazem: arm, fetch: limita });
   assert.strictEqual(r.body.indisponivel, true); assert.match(r.body.motivo, /limitou/);
 });
+
+test('API histórico: guarda e lista comparações de palavras-chave', async () => {
+  process.env.PAINEL_SENHA = 'segredo-teste';
+  const H = { 'x-senha': 'segredo-teste' }, arm = criar(blobFalso());
+  const resultado = { lista: [{ termo: 'fita dupla face espelho', fontes: ['google'], forca: { total: 78 }, uso: 'título' }, { termo: 'fita eva', fontes: ['mercadolivre'], forca: { total: 50 }, uso: 'descrição e ficha' }], termos: ['fita', 'eva'] };
+  let r = res(); await api({ method: 'POST', headers: H, query: {}, body: { acao: 'palavras', termo: 'fita espelho', resultado } }, r, { armazem: arm });
+  assert.strictEqual(r.body.ok, true);
+  r = res(); await api({ method: 'POST', headers: H, query: {}, body: { acao: 'palavras', termo: 'fita espelho', resultado } }, r, { armazem: arm });
+  r = res(); await api({ method: 'GET', headers: H, query: { palavras: '1' } }, r, { armazem: arm });
+  assert.strictEqual(r.body.itens.length, 1); assert.deepStrictEqual(r.body.itens[0].melhor, { termo: 'fita dupla face espelho', total: 78 });
+  r = res(); await api({ method: 'GET', headers: H, query: { palavras: '1', termo: 'fita espelho' } }, r, { armazem: arm });
+  assert.strictEqual(r.body.lista.length, 2); assert.strictEqual(r.body.lista[0].uso, 'título');
+});
