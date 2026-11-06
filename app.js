@@ -148,7 +148,7 @@ function irPara(aba) {
   const mais = $('#nav-mais'); if (mais) mais.classList.toggle('ativo', !!$('#nav button[data-aba="' + aba + '"]:not([data-mob])'));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, compradores: pintarCompradores, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
@@ -269,7 +269,7 @@ function cardMp(k, m) {
 }
 
 function pintarResultado(d, salvo) {
-  S.atual = d;
+  S.atual = d; S.cliente = { termo: d.termo };
   const v = d.validacao, mp = d.marketplaces, s = d.seo;
   const totalAn = mp.mercadolivre.anuncios + mp.shopee.anuncios + mp.amazon.anuncios;
   const dom = l => { try { return new URL(l).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
@@ -309,6 +309,7 @@ function pintarResultado(d, salvo) {
     '</div>' +
   '</div>' +
   '<div class="card" style="margin-top:14px" id="card-onde"></div>' +
+  '<div class="card" style="margin-top:14px" id="card-cliente"><h2>👤 Quem é o seu cliente</h2><div class="vazio"><span class="carregando"></span>lendo o que os compradores escrevem…</div></div>' +
   '<div class="card" style="margin-top:14px" id="card-margem"></div>' +
   '<div class="card" style="margin-top:14px" id="card-preco"></div>' +
   '<div class="card" style="margin-top:14px" id="card-plano"></div>' +
@@ -386,6 +387,36 @@ function atualizarResposta(d, r, e) {
   const b = $('#resp-passo [data-ir-sec]'); if (b) b.onclick = () => { mostrarSecao(b.dataset.irSec); $('.sec-abas').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 }
 
+// 👤 Quem é o seu cliente: perfil tirado do que os compradores escrevem + Google Trends (estados e época)
+function pintarCliente() {
+  const box = $('#card-cliente'), c = S.cliente; if (!box || !c) return;
+  const pf = c.aval && c.aval.perfil, tr = c.trends;
+  if (!c.aval) return;   // espera as avaliações (o Trends chega junto ou depois)
+  const barras = (lista, cor) => lista && lista.length ? barrasH(lista.slice(0, 5).map(x => ({ rotulo: x.nome, valor: x.pct, cor, dica: esc(x.nome) + ': ' + x.vezes + ' menções (' + x.pct + '%)' })), { max: 100, formato: v => v + '%' }) : '<div class="vazio small">Pouco texto sobre isso ainda.</div>';
+  const estados = tr && tr.estados && tr.estados.length ? tr.estados : null;
+  const pouco = !pf || pf.base < 10;
+  const forte = l => (l || []).filter(x => x.vezes >= 3 && x.pct >= 10);   // só afirma com menções suficientes
+  const top = l => l && l[0] ? l[0].nome.toLowerCase() : null;
+  const frase = pf && !pouco ? [
+    forte(pf.quem)[0] ? 'Quem mais compra: <b>' + esc(top(forte(pf.quem))) + '</b>.' : '',
+    forte(pf.usos)[0] ? 'Usa principalmente para <b>' + esc(top(forte(pf.usos))) + '</b>' + (forte(pf.usos)[1] ? ' e <b>' + esc(top(forte(pf.usos).slice(1))) + '</b>' : '') + '.' : '',
+    forte(pf.decisao)[0] ? 'O que mais pesa: <b>' + esc(top(forte(pf.decisao))) + '</b>.' : '',
+    estados ? 'Procura mais em <b>' + esc(estados.slice(0, 3).map(e => e.estado).join(', ')) + '</b>.' : '',
+    tr && tr.mesesFortes && tr.mesesFortes.length ? 'Compra mais em <b>' + esc(tr.mesesFortes.join(' e ')) + '</b>.' : '',
+  ].filter(Boolean).join(' ') : '';
+  box.innerHTML = '<h2>👤 Quem é o seu cliente <span class="tag">' + (pf ? 'a partir de ' + pf.base + ' textos de compradores' : '') + '</span></h2>' +
+    (frase ? '<div class="cli-resumo">' + frase + ' <span class="small muted">Fale disso no título, nas fotos e na descrição.</span></div>' : '') +
+    (pouco ? '<p class="small muted">Ainda há pouco texto de compradores sobre esse produto (' + (pf ? pf.base : 0) + '). O perfil fica mais confiável com mais avaliações e perguntas: toque em <b>atualizar</b> no card de reclamações (aba 🥊 Concorrência) depois de alguns dias.</p>' : '') +
+    '<div class="grid g2" style="margin-top:6px">' +
+      '<div><b class="small">👥 Quem compra</b>' + barras(pf && pf.quem, 'var(--brand)') + (pf && !forte(pf.quem).length ? '<div class="small muted">Poucas menções: ainda não dá para cravar quem compra.</div>' : '') + '</div>' +
+      '<div><b class="small">🏠 Para que usa</b>' + barras(pf && pf.usos, '#1f9d55') + '</div>' +
+      '<div><b class="small">🎯 O que pesa na decisão</b>' + barras(pf && pf.decisao, '#e0a10b') + '</div>' +
+      '<div><b class="small">📍 Onde mais procuram</b>' + (estados ? barrasH(estados.slice(0, 6).map(e => ({ rotulo: e.estado, valor: e.valor, cor: 'var(--brand)', dica: esc(e.estado) + ': ' + e.valor + ' de 100' })), { max: 100 }) + '<div class="small muted">Google Trends: 100 = o estado que mais procura, proporcional à população.</div>'
+        : '<div class="vazio small">' + (tr && !tr.indisponivel ? 'O Google Trends não tem procura suficiente por estado para essa palavra.' : 'Esperando o Google Trends…') + '</div>') + '</div>' +
+    '</div>' +
+    '<p class="aviso">Nada aqui identifica pessoas: são temas que aparecem nas avaliações, perguntas, reclamações e vídeos sobre o produto, mais a procura no Google por estado.</p>';
+}
+
 // 🗂️ A pesquisa em abas: nota e visão geral sempre no topo, o resto separado por assunto
 const SECOES = [
   ['resumo', '📊 Nota e canais', 'De onde vem a nota, a comparação entre os canais e o plano de ação.'],
@@ -399,7 +430,7 @@ function secaoDoBloco(el) {
   if (el.id === 'resposta') return 'topo';
   if (el.classList.contains('g-hero')) return 'resumo';
   if (id === 'card-onde' || id === 'card-plano') return 'resumo';
-  if (id === 'card-serie') return 'resumo';
+  if (id === 'card-serie' || id === 'card-cliente') return 'resumo';
   if (id === 'card-margem' || id === 'card-preco') return 'lucro';
   if (id === 'card-titulos' || id === 'card-fotos' || id === 'card-perguntas' || id === 'card-videos') return 'anuncio';
   if (id === 'card-palavras' || el.querySelector('#bt-ir-palavras')) return 'palavras';
@@ -687,6 +718,7 @@ async function pintarSerie(termo) {
   const [p, tr] = await Promise.all([buscarSerie(termo), api('/api/historico?tendencia=1&termo=' + encodeURIComponent(termo)).catch(e => ({ indisponivel: true, motivo: e.message }))]);
   if (!$('#card-serie') || !S.atual || slug(S.atual.termo) !== slug(termo)) return;
   const vig = vigiada(termo);
+  if (S.cliente && S.cliente.termo === termo) { S.cliente.trends = tr; pintarCliente(); }
   // preço: faixa mínimo–máximo e o preço comum, a cada checagem
   const q = p.filter(x => x.precoMediano != null);
   const ult = q[q.length - 1] || {}, pri = q[0] || {};
@@ -892,55 +924,6 @@ function pintarSimulador() {
   desenhar();
 }
 
-// ───────────────────────── 🏪 COMPRADORES EM VOLUME ─────────────────────────
-let compradoresRes = null;
-async function pintarCompradores() {
-  const box = $('#aba-compradores'), st = ls.get('radar_compr', { cidade: '', tipos: ['vidraçaria', 'marcenaria', 'loja de material de construção', 'móveis planejados'] });
-  const OPCOES = ['vidraçaria', 'marcenaria', 'loja de material de construção', 'móveis planejados', 'serralheria', 'loja de decoração', 'gesseiro', 'vidros e espelhos'];
-  box.innerHTML = '<h1 class="titulo-aba">Compradores em volume</h1><p class="sub-aba">Empresas que usam o seu produto todo dia e compram caixa fechada, achadas no Google Maps. Você escolhe a cidade e os tipos; o contato é feito por você (WhatsApp, telefone ou visita).</p>' +
-    '<div class="card" style="margin-top:14px"><div class="compr-form"><label>Cidade<input id="compr-cidade" placeholder="ex.: Campinas SP" value="' + esc(st.cidade) + '"></label>' +
-    '<label>Páginas por tipo<select id="compr-pag"><option value="1">1 (até 20 empresas)</option><option value="2">2 (até 40)</option></select></label></div>' +
-    '<div class="small muted" style="margin:10px 0 6px">Tipos de empresa</div><div class="chips">' + OPCOES.map(t => '<label class="chip compr-tipo"><input type="checkbox" value="' + esc(t) + '"' + (st.tipos.includes(t) ? ' checked' : '') + '> ' + esc(t) + '</label>').join('') + '</div>' +
-    '<div class="pal-acoes" style="margin-top:12px"><button type="button" class="pri" id="compr-ir">Buscar compradores</button><span class="small muted" id="compr-custo"></span></div></div>' +
-    '<div id="compr-res" style="margin-top:14px"></div>';
-  const custo = () => { const n = $$('.compr-tipo input:checked').length * Number($('#compr-pag').value); $('#compr-custo').textContent = n ? 'Gasta cerca de ' + n + ' crédito' + (n > 1 ? 's' : '') + ' do Serper' : 'Marque pelo menos um tipo'; $('#compr-ir').disabled = !n; };
-  $$('.compr-tipo input').forEach(i => i.onchange = custo); $('#compr-pag').onchange = custo; custo();
-  $('#compr-ir').onclick = async () => {
-    const cidade = $('#compr-cidade').value.trim(), tipos = $$('.compr-tipo input:checked').map(i => i.value);
-    if (cidade.length < 3) { $('#compr-cidade').focus(); return avisoRapido('Informe a cidade.'); }
-    ls.set('radar_compr', { cidade, tipos });
-    $('#compr-ir').disabled = true; $('#compr-res').innerHTML = '<div class="card"><div class="vazio"><span class="carregando"></span>Procurando no Google Maps…</div></div>';
-    try { compradoresRes = await api('/api/concorrentes', { method: 'POST', body: JSON.stringify({ acao: 'compradores', cidade, tipos, paginas: Number($('#compr-pag').value) }) }); desenharCompradores(); }
-    catch (e) { $('#compr-res').innerHTML = '<div class="card"><div class="vazio">' + esc(e.message) + '</div></div>'; }
-    $('#compr-ir').disabled = false;
-  };
-  if (!compradoresRes) { try { const u = await api('/api/concorrentes?compradores=1'); if (u && u.itens && u.itens.length) compradoresRes = u; } catch (e) { /* sem busca anterior */ } }
-  if (compradoresRes && abaAtual === 'compradores') desenharCompradores();
-}
-function desenharCompradores() {
-  const r = compradoresRes, box = $('#compr-res'); if (!box || !r) return;
-  if (!r.itens.length) { box.innerHTML = '<div class="card"><div class="vazio">Nenhuma empresa encontrada em ' + esc(r.cidade) + '. Tente a cidade com o estado (ex.: "Campinas SP") ou outros tipos.</div></div>'; return; }
-  const comZap = r.itens.filter(i => i.whatsapp).length, porTipo = {};
-  r.itens.forEach(i => { porTipo[i.tipo] = (porTipo[i.tipo] || 0) + 1; });
-  box.innerHTML = '<div class="card"><h2>🏪 ' + r.itens.length + ' empresas em ' + esc(r.cidade) + ' <span class="tag">' + (r.em ? 'buscado em ' + dataBR(r.em) + ' · ' : '') + '<a href="#" id="compr-csv">baixar planilha (CSV)</a></span></h2>' +
-    '<div class="mini-kpis" style="margin-bottom:12px"><div><div class="v">' + r.itens.length + '</div><div class="l">Empresas</div></div><div><div class="v">' + comZap + '</div><div class="l">Com celular (WhatsApp)</div></div>' +
-      Object.entries(porTipo).slice(0, 2).map(([t, n]) => '<div><div class="v">' + n + '</div><div class="l">' + esc(t) + '</div></div>').join('') + '</div>' +
-    '<p class="small muted">Ordenado por número de avaliações no Google (empresas maiores primeiro). Dica de abordagem: ofereça amostra e preço de caixa fechada; mostre o teste de força.</p>' +
-    '<div class="tabela-wrap"><table><thead><tr><th>Empresa</th><th>Tipo</th><th class="num">Nota</th><th>Contato</th><th>Endereço</th></tr></thead><tbody>' +
-    r.itens.map(i => '<tr><td><b>' + esc(i.nome) + '</b>' + (i.categoria ? '<div class="small muted">' + esc(i.categoria) + '</div>' : '') + '</td><td class="small">' + esc(i.tipo) + '</td>' +
-      '<td class="num">' + (i.nota != null ? '⭐ ' + String(i.nota).replace('.', ',') + '<div class="small muted">' + num(i.avaliacoes || 0) + '</div>' : '—') + '</td>' +
-      '<td class="compr-contato">' + (i.whatsapp ? '<a class="sec-link" href="' + esc(i.whatsapp) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + (i.telefone ? '<a href="tel:' + esc(i.telefone.replace(/[^\d+]/g, '')) + '">' + esc(i.telefone) + '</a>' : '') + (i.site ? '<a href="' + esc(i.site) + '" target="_blank" rel="noopener">site</a>' : '') + (i.maps ? '<a href="' + esc(i.maps) + '" target="_blank" rel="noopener">mapa</a>' : '') + '</td>' +
-      '<td class="small">' + esc(i.endereco) + '</td></tr>').join('') + '</tbody></table></div>' +
-    '<p class="aviso">A planilha (CSV) abre no Excel e no Google Planilhas. O contato é sempre manual: nada é enviado sozinho.</p></div>';
-  $('#compr-csv').onclick = e => {
-    e.preventDefault();
-    const cab = ['nome', 'tipo', 'categoria', 'telefone', 'whatsapp', 'endereco', 'site', 'nota', 'avaliacoes', 'maps'];
-    const q = v => { const x = String(v == null ? '' : v); return /[";\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
-    const txt = '﻿' + [cab.join(';')].concat(r.itens.map(i => cab.map(k => q(i[k])).join(';'))).join('\r\n');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' })); a.download = 'compradores-' + slug(r.cidade) + '.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  };
-}
-
 // ───────────────────────── ⚙️ TAXAS ─────────────────────────
 function pintarTaxas() {
   const c = cfg(), box = $('#aba-taxas');
@@ -1064,6 +1047,7 @@ async function pintarAvaliacoes(d, atualizar) {
     (ia ? '' : '<p class="aviso">Com a chave da IA, o painel junta todas as fontes num resumo com as melhorias para o produto e para o anúncio.</p>');
   const at = $('#aval-atualizar'); if (at) at.onclick = e => { e.preventDefault(); pintarAvaliacoes(d, true); };
   pintarPerguntas(r, d); pintarVideos(r);
+  if (S.cliente && S.cliente.termo === d.termo) { S.cliente.aval = r; pintarCliente(); }
 }
 // ❓ Dúvidas dos compradores: o que precisa estar no título, nas fotos e na descrição
 function pintarPerguntas(r, d) {
@@ -1325,9 +1309,9 @@ const AJUDA = [
   ['mais vendido', 'Quantas vendas tem o anúncio que mais vende com essa palavra-chave.'],
   ['usar no', 'Onde colocar a palavra no seu anúncio: título (as mais fortes), descrição e ficha técnica (as médias).'],
   ['demanda', 'O que as pessoas digitam no Google, na busca do Mercado Livre e da Amazon. Use essas variações nos títulos e na descrição: é assim que o cliente acha o anúncio.'],
+  ['quem é o seu cliente', 'O perfil de quem compra esse produto, tirado do que os próprios compradores escrevem (avaliações, perguntas, reclamações e vídeos): se é gente que faz em casa ou profissional, para que usa e o que pesa na hora de escolher. Os estados vêm do Google Trends. Use isso para falar a língua do cliente no anúncio.'],
   ['o que os compradores perguntam', 'Perguntas que os compradores fazem nos anúncios dos concorrentes no Mercado Livre e as dúvidas que o Google mostra. Cada dúvida comum é algo para responder já no título, nas fotos ou na descrição do seu anúncio.'],
   ['vídeos sobre o produto', 'Os vídeos do YouTube sobre esse produto: o que mostram (teste de força, como aplicar, review). Serve de roteiro para o seu vídeo e as suas fotos. Pouco vídeo = espaço livre para você.'],
-  ['compradores em volume', 'Empresas que usam o produto no dia a dia, achadas no Google Maps: vidraçarias, marcenarias, lojas de material. Compram caixa fechada. Os dados são públicos do Maps e o contato é sempre feito por você.'],
   ['o que os compradores reclamam', 'Lê as avaliações dos anúncios concorrentes no Mercado Livre e agrupa as reclamações por tema. O que eles erram é o que você pode fazer melhor no produto e deixar claro no anúncio.'],
   ['fotos do anúncio', 'Regras de foto de cada canal e pedidos prontos para gerar imagens com IA (capa, uso real, medidas, prova de força).'],
   // painel
@@ -1567,5 +1551,5 @@ document.addEventListener('click', async e => {
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
 function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel', 'compradores'].includes(aba0)) irPara(aba0); else primeiraVez(); }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel'].includes(aba0)) irPara(aba0); else primeiraVez(); }
 })();

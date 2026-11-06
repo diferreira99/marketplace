@@ -477,17 +477,12 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .ra-lista a{font-weight:700;font-size:.88rem}
 .ra-ia{padding:12px;border:1px solid var(--line);border-radius:14px}
 
-/* 🎬 vídeos e 🏪 compradores */
+/* 🎬 vídeos */
 .videos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .video{display:grid;gap:4px;color:var(--ink);text-decoration:none!important}
 .video img,.video-sem{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;background:var(--card-2);display:grid;place-items:center;font-size:1.6rem;color:var(--muted)}
 .video-t{font-weight:700;font-size:.86rem;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .video:hover .video-t{color:var(--brand)}
-.compr-form{display:grid;grid-template-columns:2fr 1fr;gap:10px}
-.compr-form label{display:grid;gap:4px;font-size:.8rem;font-weight:600;color:var(--muted)}
-.compr-tipo{cursor:pointer}.compr-tipo input{width:auto;margin:0}
-.compr-contato{white-space:nowrap}
-.compr-contato a{display:inline-block;margin-right:8px;font-size:.84rem}
-.compr-contato .sec-link{background:#1f9d55;color:#fff;padding:3px 9px;border-radius:8px;font-weight:700;text-decoration:none}
-@media (max-width:640px){.compr-form{grid-template-columns:1fr}}
-#compr-res .tabela-wrap{max-height:70vh}
+@media (max-width:640px){
+/* 👤 quem é o cliente */
+.cli-resumo{padding:12px 14px;border-radius:12px;background:var(--brand-soft);font-size:.92rem;line-height:1.5;margin-bottom:10px}

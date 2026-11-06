@@ -2,7 +2,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const F = require('../lib/fontes');
-const C = require('../lib/compradores');
 
 test('perguntas do ML: lê e agrupa as dúvidas por tema', async () => {
   const fetch = async u => ({ ok: true, json: async () => ({ questions: [
@@ -35,18 +34,4 @@ test('Shopee e Amazon: canal, trechos negativos e temas', async () => {
   const r = await F.outrasAvaliacoes('fita espelho', 'k', fetch);
   assert.strictEqual(r.itens.length, 2); assert.strictEqual(r.negativos, 1);
   assert.strictEqual(r.itens[0].canal, 'amazon'); assert.ok(r.temas.some(t => t.tema === 'Não cola / descola'));
-});
-
-test('compradores: junta tipos sem repetir, WhatsApp só de celular, maiores primeiro', async () => {
-  assert.strictEqual(C.whatsapp('(19) 99876-5432'), 'https://wa.me/5519998765432');
-  assert.strictEqual(C.whatsapp('(19) 3234-5678'), null);
-  const qs = [];
-  const fetch = async (u, op) => { const b = JSON.parse(op.body); qs.push(b.q); return { ok: true, json: async () => ({ places: b.q.startsWith('vidraçaria') ? [
-    { title: 'Vidros A', cid: '1', phoneNumber: '(19) 99876-5432', rating: 4.8, ratingCount: 30 },
-    { title: 'Vidros B', cid: '2', phoneNumber: '(19) 3234-5678', rating: 4.5, ratingCount: 300 } ]
-    : [{ title: 'Vidros B', cid: '2', ratingCount: 300 }, { title: 'Marcenaria C', cid: '3', ratingCount: 5 }] }) }; };
-  const r = await C.buscar({ cidade: 'Campinas SP', tipos: ['vidraçaria', 'marcenaria'] }, 'k', fetch);
-  assert.deepStrictEqual(qs, ['vidraçaria em Campinas SP', 'marcenaria em Campinas SP']);
-  assert.deepStrictEqual(r.itens.map(i => i.nome), ['Vidros B', 'Vidros A', 'Marcenaria C']);
-  assert.strictEqual(r.itens[1].whatsapp, 'https://wa.me/5519998765432'); assert.ok(r.itens[0].maps.includes('cid=2'));
 });

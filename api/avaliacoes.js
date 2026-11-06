@@ -10,6 +10,7 @@ const { codigosML, buscarReviews, temasPorRegra } = require('../lib/avaliacoes')
 const mlconta = require('../lib/mlconta');
 const reclameaqui = require('../lib/reclameaqui');
 const fontes = require('../lib/fontes');
+const perfil = require('../lib/perfil');
 
 const Resumo = z.object({
   reclamacoes: z.array(z.object({ tema: z.string(), quanto: z.string(), exemplo: z.string() })),
@@ -66,6 +67,7 @@ async function handler(req, res, deps = {}) {
   const motivoML = !ids.length ? 'Nenhum anúncio do Mercado Livre com código (MLB) na pesquisa nem nos concorrentes.'
     : !itens.length ? 'O Mercado Livre não liberou as avaliações agora' + (tk ? '.' : ' (conectar a sua conta do ML na aba 🛒 Minha loja costuma resolver).') : null;
   const extras = { perguntas: { ...perguntas, google: ((d.seo && d.seo.perguntas) || []).map(x => x.pergunta).filter(Boolean) }, videos, outras };
+  extras.perfil = perfil.perfilCliente(perfil.textosDe({ itensML: itens, reclameAqui: ra, ...extras }));
   if (!itens.length && !(ra && ra.itens.length)) if (!(outras && outras.itens.length)) { const vazio = { termo, em: new Date().toISOString(), anuncios: 0, fonte: 'nenhum', motivo: motivoML || 'Sem avaliações disponíveis.', reclameAqui: ra, ...extras };
     try { await arm.mudarArquivo('avaliacoes/' + armazem.slug(termo) + '.json', () => vazio); } catch (e) { /* cache é extra */ }
     return res.status(200).json(vazio); }

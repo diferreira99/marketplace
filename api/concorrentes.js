@@ -1,12 +1,9 @@
 // GET  /api/concorrentes            -> anúncios acompanhados + histórico de cada um
 // POST /api/concorrentes {acao:'adicionar', link, apelido} | {acao:'remover', id} | {acao:'checar', id}
-// GET  /api/concorrentes?compradores=1  -> última busca de compradores em volume
-// POST /api/concorrentes {acao:'compradores', cidade, tipos[], paginas} -> empresas no Google Maps (lib/compradores)
 'use strict';
 const { exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
 const { lerAnuncio, idDoLink, canalDoLink, validar } = require('../lib/concorrente');
-const compradores = require('../lib/compradores');
 
 const MAX = 20;
 const LISTA = 'concorrentes.json';
@@ -27,7 +24,6 @@ async function handler(req, res, deps = {}) {
   res.setHeader('Cache-Control', 'no-store');
   if (!exigirSenha(req, res)) return;
   if (req.method === 'GET') {
-    if (req.query && req.query.compradores) return res.status(200).json((await arm.lerArquivo('compradores/ultimo.json')) || { itens: [] });
     const lista = (await arm.lerArquivo(LISTA)) || [];
     const comSerie = await Promise.all(lista.map(async c => ({ ...c, pontos: (await arm.lerArquivo(serieDe(c.id))) || [] })));
     return res.status(200).json({ nuvem: arm.ativo, itens: comSerie });
@@ -49,15 +45,6 @@ async function handler(req, res, deps = {}) {
       let ponto = null;
       if (chave) { try { ponto = await checar(arm, c, chave, deps.fetch || fetch); } catch (e) { ponto = null; } }
       return res.status(200).json({ ok: true, item: c, ponto });
-    }
-    if (b.acao === 'compradores') {
-      if (!chave) return res.status(500).json({ erro: 'Falta configurar SERPER_API_KEY na Vercel.' });
-      const cidade = String(b.cidade || '').trim().slice(0, 80);
-      if (cidade.length < 3) return res.status(400).json({ erro: 'Informe a cidade (ex.: Campinas SP).' });
-      const tipos = (Array.isArray(b.tipos) ? b.tipos : []).map(t => String(t).trim().slice(0, 60)).filter(Boolean);
-      const r = { ...(await compradores.buscar({ cidade, tipos, paginas: Number(b.paginas) || 1 }, chave, deps.fetch || fetch)), em: new Date().toISOString() };
-      try { await arm.mudarArquivo('compradores/ultimo.json', () => r); } catch (e) { /* segue */ }
-      return res.status(200).json(r);
     }
     if (b.acao === 'remover') {
       await arm.mudarArquivo(LISTA, l => (Array.isArray(l) ? l : []).filter(x => x.id !== b.id));
