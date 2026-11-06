@@ -1,6 +1,6 @@
 // Service worker do Radar: guarda a "casca" do app para abrir rápido (e sem internet).
 // Os dados (/api) sempre vêm da rede: nunca ficam guardados aqui.
-const VERSAO = 'radar-v1';
+const VERSAO = 'radar-v2';
 const CASCA = ['/', '/index.html', '/app.js', '/estilo.css', '/manifest.webmanifest',
   '/lib/margem.js', '/lib/frete.js', '/lib/precoideal.js', '/lib/calendario.js', '/lib/recomendacao.js', '/lib/palavras.js',
   '/icones/icone-192.png', '/icones/icone-512.png', '/icones/apple-touch-icon.png'];
@@ -20,10 +20,7 @@ self.addEventListener('fetch', e => {
       .catch(() => caches.match('/index.html')));
     return;
   }
-  // arquivos do app: responde na hora com o guardado e atualiza por trás
-  e.respondWith(caches.open(VERSAO).then(async c => {
-    const guardado = await c.match(req, { ignoreSearch: true });
-    const rede = fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; }).catch(() => guardado);
-    return guardado || rede;
-  }));
+  // arquivos do app: rede primeiro (sempre a versão nova, página e estilo juntos); sem internet usa o guardado
+  e.respondWith(fetch(req).then(r => { if (r.ok) { const c = r.clone(); caches.open(VERSAO).then(x => x.put(req, c)); } return r; })
+    .catch(() => caches.match(req, { ignoreSearch: true })));
 });

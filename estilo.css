@@ -396,3 +396,16 @@ code{background:var(--card-2);padding:1px 6px;border-radius:6px;font-size:.82rem
 .rod-botoes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .rod-botoes button{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:var(--side-ink);font-weight:600;font-size:.8rem;cursor:pointer}
 .rod-botoes button:hover{background:rgba(255,255,255,.12);color:#fff}
+/* barra lateral: rodapé sempre visível, o menu rola se faltar altura */
+@media (min-width:861px){
+  .lado{overflow:hidden;gap:12px}
+  #nav{flex:1;min-height:0;overflow-y:auto;align-content:start;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent;margin:0 -4px;padding:0 4px}
+  #nav button{padding:8px 12px}
+  .lado-rodape{flex:none}
+}
+@media (min-width:861px) and (max-height:760px){
+  .lado{padding-top:14px;padding-bottom:12px}
+  #nav button{padding:6px 12px;font-size:.88rem}
+  .nav-grupo{padding-top:8px}
+  .lado .marca img{width:28px;height:28px}
+}
