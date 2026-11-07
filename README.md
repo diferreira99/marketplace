@@ -48,7 +48,9 @@ Cada pesquisa nova gasta **6 créditos** do Serper.
 |---|---|
 | `SERPER_API_KEY` | Chave da API do Serper |
 | `PAINEL_SENHA` | Senha para entrar no painel (sem ela, a API recusa tudo) |
-| `ANTHROPIC_API_KEY` | Opcional: títulos de anúncio escritos pela IA |
+| `OPENAI_API_KEY` | Opcional: liga a IA (anúncio completo, resumo das avaliações e ideias de produto). Tem prioridade sobre a Anthropic |
+| `OPENAI_MODEL` | Opcional: modelo da OpenAI (padrão `gpt-4o-mini`) |
+| `ANTHROPIC_API_KEY` | Opcional: usa a IA da Anthropic quando não há chave da OpenAI |
 | `ALERTA_WEBHOOK_URL` | Opcional: recebe os alertas da semana (ex.: um webhook do n8n que manda no WhatsApp ou e-mail) |
 | `ML_ACCESS_TOKEN` | Opcional: só se o Mercado Livre passar a exigir login para consultar a comissão da categoria |
 | `ML_CLIENT_ID` / `ML_CLIENT_SECRET` | Opcional: app do Mercado Livre para conectar a sua loja (aba Minha loja) |

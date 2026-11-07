@@ -7,6 +7,7 @@ const { pesquisar } = require('./pesquisa');
 const concorrentes = require('./concorrentes');
 const { alertasVigiada, alertasConcorrente } = require('../lib/alertas');
 const push = require('../lib/push');
+const meus = require('../lib/meus');
 
 async function handler(req, res, deps = {}) {
   const arm = deps.armazem || armazem.padrao();
@@ -17,7 +18,8 @@ async function handler(req, res, deps = {}) {
   const chave = process.env.SERPER_API_KEY;
   if (!chave || !arm.ativo) return res.status(500).json({ erro: 'Falta SERPER_API_KEY ou o armazenamento.' });
 
-  const vigiadas = ((await arm.config()).vigiadas || []).slice(0, 15);
+  const conf = await arm.config();
+  const vigiadas = (conf.vigiadas || []).slice(0, 15);
   const feitos = [], falhas = [], novos = [];
   // 3 de cada vez: cabe no tempo da função e não estoura o Serper
   for (let i = 0; i < vigiadas.length; i += 3) {
@@ -25,6 +27,7 @@ async function handler(req, res, deps = {}) {
       try {
         const d = await pesquisar(v.termo, chave, fetcher);
         await arm.salvar(d); await arm.anotarSerie(d);
+        try { await meus.anotar(arm, d, conf.meusAnuncios); } catch (e) { /* extra */ }
         novos.push(...alertasVigiada(v.termo, await arm.serie(v.termo)));
         feitos.push(v.termo);
       } catch (e) { falhas.push({ termo: v.termo, erro: e.message }); }

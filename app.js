@@ -123,7 +123,7 @@ $('#tema').onclick = () => {
   document.documentElement.dataset.theme = escuro ? 'light' : 'dark'; ls.set('radar_tema', document.documentElement.dataset.theme); rotuloTema();
 };
 function mostrarLogin(sim) { $('#login').classList.toggle('hidden', !sim); $('#app').classList.toggle('hidden', sim); if (sim) setTimeout(() => $('#senha').focus(), 50); }
-$('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); carregar(); primeiraVez(); };
+$('#entrar').onclick = () => { const s = $('#senha').value.trim(); if (!s) return; ls.set('radar_senha', s); mostrarLogin(false); carregar(); irPara('hoje'); primeiraVez(); };
 $('#senha').onkeydown = e => { if (e.key === 'Enter') $('#entrar').click(); };
 $('#sair').onclick = () => { ls.del('radar_senha'); $('#senha').value = ''; mostrarLogin(true); };
 function rotuloTema() {
@@ -142,16 +142,27 @@ rotuloTema(); statusRodape();
 let abaAtual = 'painel';
 function irPara(aba) {
   abaAtual = aba;
+  if ($('#nav-mais-grupo') && $('#nav-mais-grupo button[data-aba="' + aba + '"]') && window._abrirNavMais) window._abrirNavMais();
   $$('#nav button').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
   const bAba = $('#nav button[data-aba="' + aba + '"]'); if ($('#barra-aba') && bAba) $('#barra-aba').textContent = Array.from(bAba.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
   if ($('#lado') && $('#lado').classList.contains('aberta')) abrirGaveta(false);
   const mais = $('#nav-mais'); if (mais) mais.classList.toggle('ativo', !!$('#nav button[data-aba="' + aba + '"]:not([data-mob])'));
   $$('.aba').forEach(s => s.classList.toggle('hidden', s.id !== 'aba-' + aba));
   erro('');
-  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, trilha: pintarTrilha, simulador: pintarSimulador, blackfriday: pintarBlackFriday, comparar: pintarComparar, pesquisar: () => {} })[aba]();
+  ({ painel: pintarPainel, lote: pintarLote, vigiadas: pintarVigiadas, taxas: pintarTaxas, catalogo: pintarCatalogo, loja: pintarLoja, calendario: pintarCalendario, hoje: pintarHoje, trilha: pintarTrilha, simulador: pintarSimulador, blackfriday: pintarBlackFriday, comparar: pintarComparar, pesquisar: () => {} })[aba]();
   window.scrollTo({ top: 0 });
 }
 $$('#nav button[data-aba]').forEach(b => b.onclick = () => irPara(b.dataset.aba));
+// grupo "Mais" do menu: abre e fecha (lembra a escolha); abre sozinho se a tela atual estiver nele
+(() => {
+  const t = $('#nav-mais-toggle'), g = $('#nav-mais-grupo'); if (!t || !g) return;
+  const set = ab => { g.classList.toggle('hidden', !ab); t.setAttribute('aria-expanded', ab); t.querySelector('.seta').textContent = ab ? '▾' : '▸'; };
+  set(ls.get('radar_nav_mais', false));
+  t.onclick = () => { const ab = g.classList.contains('hidden'); ls.set('radar_nav_mais', ab); set(ab); };
+  window._abrirNavMais = () => set(true);
+})();
+// "Minha loja" só aparece com o app do Mercado Livre configurado ou a conta conectada
+function ajustarMenuLoja() { api('/api/ml-conta').then(r => { const b = $('#nav button[data-aba="loja"]'); if (b) b.classList.toggle('hidden', !(r.configurado || r.conectado)); }).catch(() => {}); }
 
 async function carregar() {
   if (!senha()) return;
@@ -162,11 +173,13 @@ async function carregar() {
     S.cfg = c;
   } catch (e) { erro(e.message); }
   carregarMonitorados();
+  ajustarMenuLoja();
   statusRodape();
   if (abaAtual === 'painel') pintarPainel();
   if (abaAtual === 'vigiadas') pintarVigiadas();
   if (abaAtual === 'taxas') pintarTaxas();
   if (abaAtual === 'trilha') pintarTrilha();
+  if (abaAtual === 'hoje') pintarHoje();
   if (abaAtual === 'simulador') pintarSimulador();
   atualizarSeloTrilha();
 }
@@ -315,6 +328,7 @@ function pintarResultado(d, salvo) {
   '</div>' +
   '<div class="card" style="margin-top:14px" id="card-onde"></div>' +
   '<div class="card" style="margin-top:14px" id="card-cliente"><h2>👤 Quem é o seu cliente</h2><div class="vazio"><span class="carregando"></span>lendo o que os compradores escrevem…</div></div>' +
+  '<div class="card" style="margin-top:14px" id="card-ideias"></div>' +
   '<div class="card" style="margin-top:14px" id="card-margem"></div>' +
   '<div class="card" style="margin-top:14px" id="card-preco"></div>' +
   '<div class="card" style="margin-top:14px" id="card-plano"></div>' +
@@ -474,15 +488,16 @@ function pintarHype(d, porAnuncio) {
       '<div class="chips">' + Object.keys(NOMEC).filter(k => conta(k)).map(k => '<button type="button" class="chip' + (f.canal === k ? ' on' : '') + '" data-hc="' + k + '">' + (k !== 'todos' && k !== 'shopping' ? logo(k) + ' ' : '') + NOMEC[k] + ' · ' + conta(k) + '</button>').join('') + '</div>' +
       '<label>Estrelas<select id="hype-est"><option value="0">qualquer</option><option value="4"' + (f.estrelas == 4 ? ' selected' : '') + '>4★ ou mais</option><option value="4.5"' + (f.estrelas == 4.5 ? ' selected' : '') + '>4,5★ ou mais</option><option value="4.8"' + (f.estrelas == 4.8 ? ' selected' : '') + '>4,8★ ou mais</option></select></label>' +
       '<label>Ordenar por<select id="hype-ord">' + [['hype', '🔥 mais hypados'], ['avaliacoes', '💬 mais avaliações'], ['estrelas', '⭐ mais estrelas'], ['vendidos', '🛒 mais vendidos'], ['preco', '💲 menor preço']].map(([v, n]) => '<option value="' + v + '"' + (f.ordem === v ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></label>' +
-    '</div><div id="hype-lista"></div>' +
+    '</div><div id="hype-meu"></div><div id="hype-lista"></div>' +
     '<p class="small muted">Hype de 0 a 100: junta vendas, número de avaliações e estrelas (o que o Google trouxer de cada anúncio; com menos sinais, a nota é um pouco mais conservadora). Pontos positivos e negativos vêm das avaliações dos anúncios do Mercado Livre; Shopee, Amazon e Shopping mostram estrelas e quantidade quando o Google traz.</p>';
   const desenhar = () => {
     const l = Hype.filtrar(lista, f);
     $('#hype-lista').innerHTML = !l.length ? '<div class="vazio">Nenhum anúncio com esse filtro.</div>' : '<ol class="hype-lista">' + l.slice(0, 25).map(a => {
       const rv = a.reviews, h = a.hype;
-      return '<li class="hype-it">' + (a.canal !== 'shopping' ? botaoEstrela(a.link, a.titulo) : '') +
+      const meu = ehMeu(a.link);
+      return '<li class="hype-it' + (meu ? ' hype-meu' : '') + '">' + (a.canal !== 'shopping' ? botaoEstrela(a.link, a.titulo) : '') +
         '<div class="hype-topo"><span class="hype-n" style="--h:' + h + '%">' + h + '</span><div class="hype-tit"><a href="' + esc(a.link) + '" target="_blank" rel="noopener">' + esc(a.titulo || 'anúncio') + '</a>' +
-        '<div class="hype-meta">' + (a.canal !== 'shopping' ? logo(a.canal) + ' ' : '🛍️ ') + esc(a.loja || NOMEC[a.canal]) + ' · <b>' + esc(Hype.rotulo(h)) + '</b></div></div></div>' +
+        '<div class="hype-meta">' + (meu ? '<span class="selo-meu">🏠 seu anúncio</span> ' : '') + (a.canal !== 'shopping' ? logo(a.canal) + ' ' : '🛍️ ') + esc(a.loja || NOMEC[a.canal]) + ' · <b>' + esc(Hype.rotulo(h)) + '</b> · <button type="button" class="link hype-eh-meu" data-meu="' + esc(a.link) + '">' + (meu ? 'não é meu' : '🏠 é meu') + '</button></div></div></div>' +
         '<div class="hype-nums">' + (a.preco ? '<span class="preco">' + brl(a.preco) + '</span>' : '') +
           (a.nota != null ? '<span>⭐ <b>' + String(a.nota).replace('.', ',') + '</b>' + (a.avaliacoes ? ' (' + num(a.avaliacoes) + ' avaliações)' : '') + '</span>' : (a.avaliacoes ? '<span>💬 ' + num(a.avaliacoes) + ' avaliações</span>' : '<span class="muted">sem nota no Google</span>')) +
           (a.vendidos ? '<span>🛒 ' + num(a.vendidos) + '+ vendidos</span>' : '') + '</div>' +
@@ -492,11 +507,42 @@ function pintarHype(d, porAnuncio) {
           '<span class="small muted"> (' + rv.lidas + ' avaliações lidas: ' + rv.nPos + ' boas, ' + rv.nNeg + ' ruins)</span></div>' : '') + '</li>';
     }).join('') + '</ol>' + (l.length > 25 ? '<p class="small muted">Mostrando os 25 primeiros de ' + l.length + '.</p>' : '');
   };
+  // resumo do seu anúncio: posição e por que os da frente estão na frente
+  const desenharMeu = () => {
+    const box2 = $('#hype-meu'); if (!box2) return;
+    const ord = Hype.filtrar(lista, { ordem: 'hype' });
+    const meusAqui = ord.map((a, i) => ({ a, i })).filter(x => ehMeu(x.a.link));
+    if (!meusAqui.length) { box2.innerHTML = (cfg().meusAnuncios || []).length ? '' : '<p class="small muted" style="margin:0 0 8px">Toque em <b>🏠 é meu</b> no seu anúncio para ver a sua posição e acompanhar toda semana.</p>'; return; }
+    box2.innerHTML = meusAqui.map(({ a, i }) => {
+      const frente = ord.slice(0, i);
+      const motivos = frente.slice(-2).map(x => {
+        const r = [];
+        if ((x.avaliacoes || 0) > (a.avaliacoes || 0) * 1.5) r.push(num(x.avaliacoes) + ' avaliações');
+        if (x.nota != null && a.nota != null && x.nota > a.nota) r.push(String(x.nota).replace('.', ',') + '★');
+        if ((x.vendidos || 0) > (a.vendidos || 0) * 1.5) r.push(num(x.vendidos) + '+ vendidos');
+        if (x.preco && a.preco && x.preco < a.preco * 0.95) r.push('mais barato (' + brl(x.preco) + ')');
+        return '<li><b>' + esc((x.titulo || '').slice(0, 60)) + '</b>: ' + (r.length ? r.join(', ') : 'hype ' + x.hype + ' contra ' + a.hype) + '</li>';
+      }).join('');
+      return '<div class="hype-meu-box">🏠 <b>Seu anúncio está em ' + (i + 1) + 'º de ' + ord.length + '</b> (hype ' + a.hype + ')' + (i === 0 ? ' 🥇 É o mais hypado da pesquisa.' : '. Quem está logo à frente e por quê:<ul>' + motivos + '</ul>') + '</div>';
+    }).join('');
+  };
+  box._redesenhar = () => { desenhar(); desenharMeu(); };
+  if (!box._ouveMeu) box._ouveMeu = true, box.addEventListener('click', async e => {
+    const b = e.target.closest && e.target.closest('[data-meu]'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const link = b.dataset.meu, atuais = cfg().meusAnuncios || [];
+    const novos = ehMeu(link) ? atuais.filter(l => chaveMeu(l) !== chaveMeu(link)) : atuais.concat([link]);
+    try { const c = await api('/api/config', { method: 'POST', body: JSON.stringify({ acao: 'meus', links: novos }) }); S.cfg = c;
+      if (S.atual) api('/api/pesquisa', { method: 'POST', body: JSON.stringify({ termo: S.atual.termo }) }).catch(() => {});   // anota a posição já (resultado guardado, sem gastar crédito)
+      avisoRapido(ehMeu(link) ? '🏠 Marcado como seu. O Radar acompanha a posição a cada pesquisa e toda segunda.' : 'Desmarcado.'); }
+    catch (err) { avisoRapido('⚠️ ' + esc(err.message)); }
+    box._redesenhar();
+  });
   const salvar = () => { ls.set('radar_hype', f); desenhar(); };
   box.querySelectorAll('[data-hc]').forEach(b => b.onclick = () => { f.canal = b.dataset.hc; box.querySelectorAll('[data-hc]').forEach(x => x.classList.toggle('on', x === b)); salvar(); });
   $('#hype-est').onchange = () => { f.estrelas = Number($('#hype-est').value) || 0; salvar(); };
   $('#hype-ord').onchange = () => { f.ordem = $('#hype-ord').value; salvar(); };
-  desenhar();
+  desenhar(); desenharMeu();
 }
 
 // 🗂️ A pesquisa em abas: nota e visão geral sempre no topo, o resto separado por assunto
@@ -512,7 +558,7 @@ function secaoDoBloco(el) {
   if (el.id === 'resposta') return 'topo';
   if (el.classList.contains('g-hero')) return 'resumo';
   if (id === 'card-onde' || id === 'card-plano') return 'resumo';
-  if (id === 'card-serie' || id === 'card-cliente') return 'resumo';
+  if (id === 'card-serie' || id === 'card-cliente' || id === 'card-ideias') return 'resumo';
   if (id === 'card-margem' || id === 'card-preco') return 'lucro';
   if (id === 'card-titulos' || id === 'card-fotos' || id === 'card-perguntas' || id === 'card-videos') return 'anuncio';
   if (id === 'card-palavras' || el.querySelector('#bt-ir-palavras')) return 'palavras';
@@ -777,7 +823,7 @@ async function gerarTitulos(d) {
         '<div><b>Destaques</b> ' + copiar(x.destaques.map(y => '• ' + y).join('\n')) + '<ul>' + x.destaques.map(y => '<li>' + esc(y) + '</li>').join('') + '</ul></div>' +
         (r.fichaTecnica && r.fichaTecnica.length ? '<div><b>Ficha técnica sugerida</b><table>' + r.fichaTecnica.map(f => '<tr><td>' + esc(f.campo) + '</td><td>' + esc(f.valor) + '</td></tr>').join('') + '</table></div>' : '') +
         (r.perguntas && r.perguntas.length ? '<div><b>Respostas para as perguntas que o povo faz</b>' + r.perguntas.map(p => '<details><summary>' + esc(p.pergunta) + '</summary><p class="small">' + esc(p.resposta) + ' ' + copiar(p.resposta) + '</p></details>').join('') + '</div>' : '') +
-        (r.dica ? '<p class="small">💡 ' + esc(r.dica) + '</p>' : '') + (r.fonte === 'ia' ? '<p class="aviso">Escrito pela IA (Claude) com base nas buscas reais e nos concorrentes. Revise medidas e dados antes de publicar.</p>' : '') + '</div>';
+        (r.dica ? '<p class="small">💡 ' + esc(r.dica) + '</p>' : '') + (r.fonte === 'ia' ? '<p class="aviso">Escrito pela IA com base nas buscas reais e nos concorrentes. Revise medidas e dados antes de publicar.</p>' : '') + '</div>';
       $$('[data-aba-canal]').forEach(b => b.onclick = () => { aba = b.dataset.abaCanal; desenhar(); });
       $$('#titulos-saida [data-copiar]').forEach(b => b.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(b.dataset.copiar); b.textContent = '✔ copiado'; });
     }
@@ -1314,6 +1360,74 @@ function desenharBF() {
   if ($('#bf-salvo') && /salvo/.test($('#bf-salvo').textContent)) $('#bf-salvo').textContent = 'mudou: salve de novo';
 }
 
+// 🏠 anúncios marcados como seus (mesma regra do servidor: código MLB ou endereço sem parâmetros)
+function chaveMeu(l) {
+  const m = String(l || '').match(/MLB-?(\d{6,})/i); if (m) return 'MLB' + m[1];
+  try { const u = new URL(l); return (u.hostname.replace(/^www\./, '') + u.pathname.replace(/\/+$/, '')).toLowerCase(); } catch (e) { return String(l || '').toLowerCase(); }
+}
+function ehMeu(link) { const k = chaveMeu(link); return (cfg().meusAnuncios || []).some(l => chaveMeu(l) === k); }
+
+// 💡 Ideias de produto e kit
+function pintarIdeias(r) {
+  const box = $('#card-ideias'); if (!box || !window.Ideias) return;
+  const l = Ideias.gerar(r);
+  box.innerHTML = '<h2>💡 Ideias de produto e kit <span class="tag">do que os compradores perguntam, reclamam e usam</span></h2>' +
+    (!l.length ? '<div class="vazio">Ainda não há dúvidas e reclamações suficientes para sugerir produto. Toque em <b>atualizar</b> no card de reclamações (aba 🥊 Concorrência) daqui a alguns dias.</div>'
+      : '<div class="ideias">' + l.map(x => '<div class="ideia"><div class="ideia-t">' + (x.fonte === 'ia' ? '🧠 ' : '💡 ') + esc(x.ideia) + '</div>' + (x.como ? '<div class="small">' + esc(x.como) + '</div>' : '') + '<div class="small muted">Por quê: ' + esc(x.porque) + '</div></div>').join('') + '</div>' +
+        (r.ia ? '' : '<p class="small muted">Com a chave da IA ligada, entram também ideias escritas pela IA a partir das avaliações.</p>'));
+}
+
+// ───────────────────────── ☀️ HOJE ─────────────────────────
+// O que fazer agora: o que mudou, datas, seus anúncios, onde parou e o que falta configurar.
+async function pintarHoje() {
+  const box = $('#aba-hoje');
+  const h = new Date().getHours(), saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  const datas = Calendario.proximas(new Date(), 6).filter(x => x.dias <= 45).slice(0, 3);
+  const pr = progressoTrilha();
+  box.innerHTML = '<h1 class="titulo-aba">' + saud + '! 👋</h1><p class="sub-aba">' + new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) + ' · o que merece a sua atenção hoje.</p>' +
+    '<div class="hoje-grade">' +
+      '<div class="card" id="hoje-mudou"><h2>🚨 O que mudou</h2><div class="vazio"><span class="carregando"></span>carregando…</div></div>' +
+      '<div class="card" id="hoje-meus"><h2>🏠 Seus anúncios</h2><div class="vazio"><span class="carregando"></span>carregando…</div></div>' +
+      '<div class="card"><h2>📅 Próximas datas</h2>' + (datas.length ? '<div class="hoje-datas">' + datas.map(x => '<div class="hoje-data"><b>' + esc(x.nome.replace(' (Shopee e Mercado Livre)', '')) + '</b><span>' + (x.dias <= 0 ? 'hoje' : 'em ' + x.dias + ' dia' + (x.dias > 1 ? 's' : '')) + '</span>' + (x.atrasado ? '<small class="hoje-ja">⚡ produzir já</small>' : '<small>produzir até ' + dataBR(x.produzirAte) + '</small>') + '</div>').join('') + '</div>' +
+        (datas.some(x => /Black Friday/.test(x.nome)) ? '<button type="button" class="sec" data-ir-aba="blackfriday" style="margin-top:10px">🛍️ Abrir o plano de Black Friday</button>' : '') : '<div class="vazio">Nenhuma data forte nas próximas semanas.</div>') + '</div>' +
+      '<div class="card"><h2>🔎 Continuar de onde parou</h2>' + (S.hist.length ? '<ul class="hoje-lista">' + S.hist.slice().sort((a, b) => String(b.em).localeCompare(String(a.em))).slice(0, 4).map(x => '<li class="clic" data-abrir="' + esc(x.termo) + '"><b>' + esc(x.termo) + '</b><span>' + nivelTag(x.nivel) + ' ' + x.nota + '/100</span></li>').join('') + '</ul>' : '<div class="vazio">Nenhuma pesquisa ainda.</div>') +
+        '<button type="button" class="pri" data-ir-aba="pesquisar" style="margin-top:10px">🔎 Pesquisar um produto</button></div>' +
+      (pr.proximo ? '<div class="card"><h2>🧭 Próximo passo</h2><p style="margin:0 0 4px"><b>' + esc(pr.proximo.titulo) + '</b></p><p class="small muted" style="margin:0 0 10px">' + esc(pr.proximo.como) + '</p><button type="button" class="sec" id="hoje-passo">Fazer agora</button> <span class="small muted">' + pr.feitos + ' de ' + pr.total + ' passos do guia</span></div>' : '') +
+      '<div class="card" id="hoje-config"><h2>⚙️ Para o Radar render mais</h2><div class="vazio"><span class="carregando"></span>conferindo…</div></div>' +
+    '</div>';
+  $$('#aba-hoje [data-ir-aba]').forEach(b => b.onclick = () => irPara(b.dataset.irAba));
+  if ($('#hoje-passo')) $('#hoje-passo').onclick = () => pr.proximo.ir();
+  // o que mudou
+  api('/api/alertas').then(r => {
+    const it = (r.itens || []).slice(0, 4), el = $('#hoje-mudou'); if (!el) return;
+    el.innerHTML = '<h2>🚨 O que mudou <span class="tag"><a href="#" data-ir-aba="vigiadas">ver tudo</a></span></h2>' + (it.length ? '<ul class="hoje-lista">' + it.map(a => '<li><span>' + esc(a.msg) + '</span><small class="muted">' + dataBR(a.em) + '</small></li>').join('') + '</ul>' : '<div class="vazio">Nada mudou de forma relevante. Os avisos aparecem depois das checagens de segunda.</div>');
+    el.querySelectorAll('[data-ir-aba]').forEach(b => b.onclick = e => { e.preventDefault(); irPara(b.dataset.irAba); });
+  }).catch(() => { const el = $('#hoje-mudou'); if (el) el.innerHTML = '<h2>🚨 O que mudou</h2><div class="vazio">Não deu para carregar agora.</div>'; });
+  // seus anúncios no ranking
+  api('/api/config?meus=1').then(o => {
+    const el = $('#hoje-meus'); if (!el) return;
+    const linhas = Object.values(o || {}).flatMap(x => { const p = x.pontos || [], u = p[p.length - 1], a = p[p.length - 2]; return u ? u.itens.map(it => { const ant = a && a.itens.find(y => chaveMeu(y.link) === chaveMeu(it.link)); return { termo: x.termo, it, dif: ant ? ant.posicao - it.posicao : null, em: u.em }; }) : []; });
+    el.innerHTML = '<h2>🏠 Seus anúncios <span class="tag">posição entre os mais hypados</span></h2>' + (linhas.length ? '<ul class="hoje-lista">' + linhas.slice(0, 5).map(l => '<li class="clic" data-abrir="' + esc(l.termo) + '"><span><b>' + l.it.posicao + 'º de ' + l.it.total + '</b> em “' + esc(l.termo) + '”' + (l.dif ? ' <span class="' + (l.dif > 0 ? 'var-pos' : 'var-neg') + '">' + (l.dif > 0 ? '▲ subiu ' + l.dif : '▼ caiu ' + (-l.dif)) + '</span>' : '') + '</span><small class="muted">' + dataBR(l.em) + '</small></li>').join('') + '</ul>'
+      : '<div class="vazio">Marque o seu anúncio com <b>🏠 é meu</b> no ranking dos mais hypados (aba 🥊 Concorrência de uma pesquisa). O Radar mostra aqui a sua posição e se subiu ou caiu.</div>');
+  }).catch(() => { const el = $('#hoje-meus'); if (el) el.innerHTML = '<h2>🏠 Seus anúncios</h2><div class="vazio">Não deu para carregar agora.</div>'; });
+  // o que falta configurar
+  Promise.all([api('/api/config').catch(() => ({})), api('/api/ml-conta').catch(() => ({})),
+    ('serviceWorker' in navigator && 'PushManager' in window) ? navigator.serviceWorker.ready.then(r => r.pushManager.getSubscription()).catch(() => null) : Promise.resolve(null)]).then(([c, ml, sub]) => {
+    const el = $('#hoje-config'); if (!el) return;
+    const itens = [
+      [!!c.ia, '🧠 IA ligada' + (c.ia ? ' (' + (c.ia === 'openai' ? 'OpenAI' : 'Anthropic') + ')' : ''), 'Coloque a OPENAI_API_KEY na Vercel: anúncio, resumo das avaliações e ideias ficam bem melhores.'],
+      [!!ml.conectado, '🛒 Conta do Mercado Livre conectada', 'Libera suas vendas e visitas reais, as perguntas e a comissão oficial.', 'loja'],
+      [!!sub, '🔔 Avisos neste aparelho', 'Receba quando um concorrente baixar o preço.', 'vigiadas'],
+      [(c.vigiadas || []).length > 0, '👀 Palavras vigiadas', 'Vigie 1 ou 2 palavras do seu produto para o Radar checar toda segunda.', 'pesquisar'],
+      [(c.meusAnuncios || []).length > 0, '🏠 Seu anúncio marcado', 'Marque o seu anúncio no ranking para acompanhar a posição.', 'pesquisar'],
+    ];
+    const falta = itens.filter(x => !x[0]);
+    el.innerHTML = '<h2>⚙️ Para o Radar render mais <span class="tag">' + (itens.length - falta.length) + ' de ' + itens.length + '</span></h2>' + (!falta.length ? '<div class="vazio">✅ Tudo configurado.</div>' :
+      '<ul class="hoje-lista">' + itens.map(([ok, t, d, aba]) => '<li' + (!ok && aba ? ' class="clic" data-ir-aba="' + aba + '"' : '') + '><span>' + (ok ? '✅ ' : '⬜ ') + '<b>' + esc(t) + '</b>' + (ok ? '' : '<br><small class="muted">' + esc(d) + '</small>') + '</span></li>').join('') + '</ul>');
+    el.querySelectorAll('[data-ir-aba]').forEach(b => b.onclick = () => irPara(b.dataset.irAba));
+  });
+}
+
 // ───────────────────────── ⚙️ TAXAS ─────────────────────────
 function pintarTaxas() {
   const c = cfg(), box = $('#aba-taxas');
@@ -1437,6 +1551,7 @@ async function pintarAvaliacoes(d, atualizar) {
     (ia ? '' : '<p class="aviso">Com a chave da IA, o painel junta todas as fontes num resumo com as melhorias para o produto e para o anúncio.</p>');
   const at = $('#aval-atualizar'); if (at) at.onclick = e => { e.preventDefault(); pintarAvaliacoes(d, true); };
   pintarPerguntas(r, d); pintarVideos(r); pintarHype(d, r.porAnuncio || null);
+  pintarIdeias(r);
   if (S.cliente && S.cliente.termo === d.termo) { S.cliente.aval = r; pintarCliente(); }
 }
 // ❓ Dúvidas dos compradores: o que precisa estar no título, nas fotos e na descrição
@@ -1720,6 +1835,9 @@ const AJUDA = [
   ['todas as pesquisas', 'A lista completa. Toque numa linha para abrir a pesquisa salva (não gasta crédito).'],
   // outras abas
   ['simulador de faturamento', 'Conta rápida: se eu vender X unidades a R$ Y, quanto entra e quanto sobra no bolso em cada canal.'],
+  ['ideias de produto e kit', 'Sugestões de produto, kit ou variação tiradas do que os compradores perguntam, reclamam e para que usam. Cada uma traz o porquê (quantas vezes a dor apareceu) e como vender.'],
+  ['seus anúncios', 'A posição dos anúncios que você marcou como seus (🏠) no ranking dos mais hypados, a cada pesquisa e na checagem de segunda.'],
+  ['para o radar render mais', 'O que ainda falta ligar para o Radar entregar tudo: IA, conta do Mercado Livre, avisos no celular, palavras vigiadas e seu anúncio marcado.'],
   ['comparar produtos', 'Coloca 2 ou 3 pesquisas lado a lado (por exemplo, fita 12 mm e 19 mm): nota, vendas, concorrência, melhor canal, lucro por unidade e se a procura está subindo. O 🏆 marca o melhor em cada ponto e o topo diz qual priorizar.'],
   ['black friday', 'Use o seu produto (do catálogo, do link da sua loja ou digitado) e, se quiser, o link de um concorrente para comparar. Mostra, para cada variação, até quanto dá para baixar o preço sem prejuízo, até quanto mantendo a sua margem mínima, o preço de oferta sugerido e quanto produzir a mais.'],
   ['catálogo da fábrica', 'Seus produtos e variações (largura, comprimento...). Com custo e peso de cada variação, o Radar mostra quais dão mais lucro e o melhor canal de cada uma.'],
@@ -1995,5 +2113,5 @@ async function pintarAvisos() {
 // ───────────────────────── início ─────────────────────────
 mostrarLogin(!senha());
 function primeiraVez() { if (!ls.get('radar_trilha_vista', false)) { ls.set('radar_trilha_vista', true); irPara('trilha'); } }
-if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel', 'comparar', 'blackfriday'].includes(aba0)) irPara(aba0); else primeiraVez(); }
+if (senha()) { carregar(); const aba0 = (location.hash || '').slice(1); if (['loja', 'catalogo', 'calendario', 'vigiadas', 'lote', 'taxas', 'trilha', 'simulador', 'pesquisar', 'painel', 'comparar', 'blackfriday', 'hoje'].includes(aba0)) irPara(aba0); else { irPara('hoje'); primeiraVez(); } }
 })();

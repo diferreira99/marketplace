@@ -1,10 +1,11 @@
 // POST /api/titulos { termo, detalhes?, dados? } -> anúncio pronto para os 3 canais:
 // títulos, descrição, destaques, ficha técnica e respostas para as perguntas que o povo faz.
-// Usa o Claude quando há ANTHROPIC_API_KEY; sem ela (ou se falhar), monta por regra.
+// Usa a IA configurada (OpenAI ou Anthropic, ver lib/ia.js); sem chave (ou se falhar), monta por regra.
 'use strict';
 const { z } = require('zod');
 const { exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
+const ia = require('../lib/ia');
 
 const LIMITES = { mercadolivre: 60, shopee: 100, amazon: 150 };
 const NOMES = { mercadolivre: 'Mercado Livre', shopee: 'Shopee', amazon: 'Amazon' };
@@ -131,24 +132,13 @@ function porRegra(d, detalhes, insights) {
   };
 }
 
-async function comIA(d, detalhes, chave, Cliente, insights) {
-  const Anthropic = Cliente || require('@anthropic-ai/sdk').default;
-  const { betaZodOutputFormat } = require('@anthropic-ai/sdk/helpers/beta/zod');
-  const client = new Anthropic({ apiKey: chave });
-  const resp = await client.beta.messages.parse({
-    model: 'claude-opus-5-5',
-    max_tokens: 8000,
-    betas: ['server-side-fallback-2026-07-01'],
-    fallbacks: 'default',
-    output_config: { effort: 'low', format: betaZodOutputFormat(Esquema) },
-    system: 'Você é especialista em anúncios de marketplace no Brasil e escreve para um fabricante que vende direto. Títulos: palavra-chave principal no começo, atributos que o comprador procura (medida, cor, material, quantidade), sem caixa alta, emojis ou símbolos. Descrição: clara, escaneável, com benefícios e especificações. Nunca invente números, medidas, certificações ou garantias que não estejam nos dados do produto: quando faltar, escreva o campo entre colchetes para o fabricante preencher. Português do Brasil.',
-    messages: [{
-      role: 'user',
-      content: `${contexto(d, detalhes, insights)}\n\nMonte o anúncio para os 3 canais:\n- 3 títulos por canal, respeitando o limite: Mercado Livre até ${LIMITES.mercadolivre}, Shopee até ${LIMITES.shopee}, Amazon até ${LIMITES.amazon} caracteres. Use as variações que as pessoas realmente buscam.\n- descrição por canal (Mercado Livre e Shopee: texto corrido com tópicos; Amazon: mais objetiva).\n- 5 destaques por canal (os "bullets").\n- ficha técnica sugerida (campo e valor; o que não souber, entre colchetes).\n- respostas curtas para as dúvidas mais comuns dos compradores e as perguntas do Google (até 6), com o que não souber entre colchetes.\n- se houver reclamações dos concorrentes, mostre na descrição e nos destaques como o produto resolve cada uma (só com o que estiver nos dados do produto; o resto entre colchetes).\n- em "dica", uma frase sobre o que diferencia o anúncio dos concorrentes listados.`,
-    }],
-  });
-  if (resp.stop_reason === 'refusal' || !resp.parsed_output) return null;
-  const o = resp.parsed_output;
+async function comIA(d, detalhes, insights, deps) {
+  const o = await ia.gerarJSON({
+    esquema: Esquema, maxTokens: 8000,
+    sistema: 'Você é especialista em anúncios de marketplace no Brasil e escreve para um fabricante que vende direto. Títulos: palavra-chave principal no começo, atributos que o comprador procura (medida, cor, material, quantidade), sem caixa alta, emojis ou símbolos. Descrição: clara, escaneável, com benefícios e especificações. Nunca invente números, medidas, certificações ou garantias que não estejam nos dados do produto: quando faltar, escreva o campo entre colchetes para o fabricante preencher. Português do Brasil.',
+    usuario: `${contexto(d, detalhes, insights)}\n\nMonte o anúncio para os 3 canais:\n- 3 títulos por canal, respeitando o limite: Mercado Livre até ${LIMITES.mercadolivre}, Shopee até ${LIMITES.shopee}, Amazon até ${LIMITES.amazon} caracteres. Use as variações que as pessoas realmente buscam.\n- descrição por canal (Mercado Livre e Shopee: texto corrido com tópicos; Amazon: mais objetiva).\n- 5 destaques por canal (os "bullets").\n- ficha técnica sugerida (campo e valor; o que não souber, entre colchetes).\n- respostas curtas para as dúvidas mais comuns dos compradores e as perguntas do Google (até 6), com o que não souber entre colchetes.\n- se houver reclamações dos concorrentes, mostre na descrição e nos destaques como o produto resolve cada uma (só com o que estiver nos dados do produto; o resto entre colchetes).\n- em "dica", uma frase sobre o que diferencia o anúncio dos concorrentes listados.`,
+  }, deps);
+  if (!o) return null;
   for (const mp of Object.keys(LIMITES)) {
     o[mp].titulos = (o[mp].titulos || []).map(t => String(t).trim()).filter(Boolean).map(t => corta(t, LIMITES[mp])).slice(0, 3);
     o[mp].destaques = (o[mp].destaques || []).slice(0, 5);
@@ -170,9 +160,8 @@ async function handler(req, res, deps = {}) {
   const sl = armazem.slug(termo);
   const [pal, aval] = await Promise.all([arm.lerArquivo('palavras/' + sl + '.json').catch(() => null), arm.lerArquivo('avaliacoes/' + sl + '.json').catch(() => null)]);
   const insights = montarInsights(pal, aval);
-  const chave = process.env.ANTHROPIC_API_KEY;
   let out = null;
-  if (chave) { try { out = await comIA(d, detalhes, chave, deps.Anthropic, insights); } catch (e) { console.warn('[anuncio] IA falhou:', e && e.message); } }
+  if (ia.qualIA()) { try { out = await comIA(d, detalhes, insights, deps); } catch (e) { console.warn('[anuncio] IA falhou:', e && e.message); } }
   if (!out) out = porRegra(d, detalhes, insights);
   const resposta = { termo, limites: LIMITES, nomes: NOMES, ...out, usouRadar: insights, geradoEm: new Date().toISOString() };
   try { await arm.mudarArquivo('anuncios/' + armazem.slug(termo) + '.json', () => resposta); } catch (e) { /* guardar é extra */ }

@@ -4,6 +4,7 @@
 const { analisar, MARKETPLACES } = require('../lib/analise');
 const { senhaOk, exigirSenha } = require('../lib/acesso');
 const armazem = require('../lib/armazem');
+const meus = require('../lib/meus');
 const { sugestoesMarketplaces } = require('../lib/seointerno');
 
 const SERPER = 'https://google.serper.dev';
@@ -66,11 +67,13 @@ async function handler(req, res, deps = {}) {
   const atualizar = !!(corpo && corpo.atualizar);
 
   const k = armazem.slug(termo);
+  // posição dos seus anúncios (🏠) também quando o resultado vem guardado (não gasta crédito)
+  const anotarMeus = async d => { try { await meus.anotar(arm, d, ((await arm.config()) || {}).meusAnuncios); } catch (e) { /* extra */ } };
   if (!atualizar) {
     const c = cache.get(k);
-    if (c && recente(c)) return res.status(200).json({ ...c, doCache: true });
+    if (c && recente(c)) { await anotarMeus(c); return res.status(200).json({ ...c, doCache: true }); }
     const salvo = await arm.ler(termo);
-    if (recente(salvo)) { cache.set(k, salvo); return res.status(200).json({ ...salvo, doCache: true }); }
+    if (recente(salvo)) { cache.set(k, salvo); await anotarMeus(salvo); return res.status(200).json({ ...salvo, doCache: true }); }
   }
 
   const chave = process.env.SERPER_API_KEY;
@@ -81,6 +84,7 @@ async function handler(req, res, deps = {}) {
     if (cache.size > 300) cache.delete(cache.keys().next().value);
     let salvoNaNuvem = false;
     try { salvoNaNuvem = await arm.salvar(dados); await arm.anotarSerie(dados); } catch (e) { console.warn('[armazem] não salvou:', e && e.message); }
+    await anotarMeus(dados);
     return res.status(200).json({ ...dados, salvoNaNuvem });
   } catch (e) {
     return res.status(e.status || 500).json({ erro: 'Não consegui pesquisar agora: ' + e.message });

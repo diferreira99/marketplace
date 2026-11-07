@@ -38,18 +38,22 @@
     <div class="marca"><img src="/icones/icone-192.png" alt=""><div>Radar<span>Marketplace</span></div></div>
     <nav id="nav">
       <div class="nav-grupo">Principal</div>
+      <button data-mob="1" data-aba="hoje" class="ativo"><span>☀️</span>Hoje</button>
       <button data-mob="1" data-aba="pesquisar"><span>🔎</span>Pesquisar</button>
       <button data-mob="1" data-aba="catalogo"><span>📦</span>Produtos</button>
+      <button data-aba="vigiadas"><span>🔔</span>Vigiadas</button>
+      <button data-mob="1" data-aba="painel"><span>📊</span>Histórico</button>
+      <div class="nav-grupo">Vender mais</div>
       <button data-mob="1" data-aba="simulador"><span>💵</span>Simulador</button>
       <button data-aba="comparar"><span>⚖️</span>Comparar</button>
       <button data-aba="blackfriday"><span>🛍️</span>Black Friday</button>
-      <button data-mob="1" data-aba="painel"><span>📊</span>Histórico</button>
-      <div class="nav-grupo">Mais ferramentas</div>
+      <button type="button" class="nav-grupo nav-toggle" id="nav-mais-toggle" aria-expanded="false"><span class="seta">▸</span> Mais ferramentas</button>
+      <div id="nav-mais-grupo" class="hidden">
       <button data-aba="lote"><span>📋</span>Lote</button>
-      <button data-aba="vigiadas"><span>🔔</span>Vigiadas</button>
-      <button data-aba="loja"><span>🛒</span>Minha loja</button>
       <button data-aba="calendario"><span>📅</span>Calendário</button>
+      <button class="hidden" data-aba="loja"><span>🛒</span>Minha loja</button>
       <button data-aba="taxas"><span>⚙️</span>Taxas</button>
+      </div>
       <div class="nav-grupo">Ajuda</div>
       <button data-aba="trilha"><span>🧭</span>Guia</button>
       <button type="button" id="nav-mais" class="so-cel"><span>☰</span>Mais</button>
@@ -78,7 +82,8 @@
     </header>
     <div id="msg"></div>
 
-    <section class="aba" id="aba-painel"></section>
+    <section class="aba" id="aba-hoje"></section>
+    <section class="aba hidden" id="aba-painel"></section>
     <section class="aba hidden" id="aba-trilha"></section>
     <section class="aba hidden" id="aba-comparar"></section>
     <section class="aba hidden" id="aba-blackfriday"></section>
@@ -104,6 +109,7 @@
 <script src="/lib/palavras.js"></script>
 <script src="/lib/blackfriday.js"></script>
 <script src="/lib/hype.js"></script>
+<script src="/lib/ideias.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

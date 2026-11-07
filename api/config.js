@@ -1,6 +1,8 @@
 // GET  /api/config  -> configurações do time (taxas, imposto, margem alvo, custos por produto, vigiadas)
 // POST /api/config  { acao, ... } -> muda uma parte, sem atropelar o que outra pessoa salvou
 // GET  /api/config?push=1 -> chave pública para ativar avisos no celular
+// GET  /api/config?meus=1 -> posição dos seus anúncios no ranking, por pesquisa
+// POST /api/config  { acao: 'meus', links: [...] } -> marca quais anúncios são seus
 // POST /api/config  { acao: 'push-inscrever' | 'push-sair' | 'push-teste', inscricao } -> avisos no celular (lib/push)
 'use strict';
 const { exigirSenha } = require('../lib/acesso');
@@ -8,6 +10,8 @@ const armazem = require('../lib/armazem');
 const { PADRAO, TAXAS_PADRAO } = require('../lib/margem');
 const { FAIXAS_PADRAO } = require('../lib/frete');
 const push = require('../lib/push');
+const meus = require('../lib/meus');
+const ia = require('../lib/ia');
 
 const MAX_VIGIADAS = 15;
 const num = (v, min, max) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined; };
@@ -20,7 +24,7 @@ function completa(c) {
   }
   return {
     imposto: c.imposto ?? PADRAO.imposto, margemAlvo: c.margemAlvo ?? PADRAO.margemAlvo, taxas,
-    custos: c.custos || {}, vigiadas: c.vigiadas || [],
+    custos: c.custos || {}, vigiadas: c.vigiadas || [], meusAnuncios: c.meusAnuncios || [],
     fretes: { ...FAIXAS_PADRAO, ...(c.fretes || {}) },
   };
 }
@@ -35,7 +39,8 @@ async function handler(req, res, deps = {}) {
     const k = await push.chaves(arm, webpush);
     return res.status(200).json({ publicKey: k.publicKey, aparelhos: ((await arm.lerArquivo('push/inscricoes.json')) || []).length });
   }
-  if (req.method === 'GET') return res.status(200).json({ nuvem: arm.ativo, ...completa(await arm.config()) });
+  if (req.method === 'GET' && req.query && req.query.meus) return res.status(200).json((await arm.lerArquivo(meus.ARQ)) || {});
+  if (req.method === 'GET') return res.status(200).json({ nuvem: arm.ativo, ia: ia.qualIA(), ...completa(await arm.config()) });
   if (req.method !== 'POST') return res.status(405).json({ erro: 'use GET ou POST' });
   if (!arm.ativo) return res.status(503).json({ erro: 'Armazenamento na nuvem não configurado.' });
   let b = req.body;
@@ -81,6 +86,8 @@ async function handler(req, res, deps = {}) {
             c.fretes[id] = faixas.map(f => [num(f[0], 0, 1000), num(f[1], 0, 5000)]).filter(f => f[0] > 0 && f[1] != null).sort((x, y) => x[0] - y[0]).slice(0, 20);
           }
         }
+      } else if (b.acao === 'meus') {
+        c.meusAnuncios = meus.limparLinks(b.links);
       } else if (b.acao === 'vigiar') {
         const k = armazem.slug(b.termo);
         const lista = (c.vigiadas || []).filter(v => v.chave !== k);

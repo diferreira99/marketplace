@@ -11,26 +11,22 @@ const mlconta = require('../lib/mlconta');
 const reclameaqui = require('../lib/reclameaqui');
 const fontes = require('../lib/fontes');
 const perfil = require('../lib/perfil');
+const ia = require('../lib/ia');
 
 const Resumo = z.object({
   reclamacoes: z.array(z.object({ tema: z.string(), quanto: z.string(), exemplo: z.string() })),
   elogios: z.array(z.string()),
   melhoriasProduto: z.array(z.string()),
   melhoriasAnuncio: z.array(z.string()),
+  ideiasProduto: z.array(z.object({ ideia: z.string(), porque: z.string() })),
 });
 
-async function comIA(textos, termo, chave, Cliente) {
-  const Anthropic = Cliente || require('@anthropic-ai/sdk').default;
-  const { betaZodOutputFormat } = require('@anthropic-ai/sdk/helpers/beta/zod');
-  const client = new Anthropic({ apiKey: chave });
-  const resp = await client.beta.messages.parse({
-    model: 'claude-opus-5-5', max_tokens: 4000, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
-    output_config: { effort: 'low', format: betaZodOutputFormat(Resumo) },
-    system: 'Você analisa avaliações de compradores para um fabricante brasileiro. Seja concreto e use só o que está nas avaliações. Português do Brasil.',
-    messages: [{ role: 'user', content: `Produto: ${termo}\n\nAvaliações de anúncios concorrentes no Mercado Livre (nota de 1 a 5) e reclamações do Reclame Aqui:\n${textos.join('\n').slice(0, 30000)}\n\nResuma: as reclamações mais frequentes (tema, quanto aparece e um exemplo curto), o que mais elogiam, o que o fabricante deve melhorar no produto e o que deve deixar claro no anúncio.` }],
-  });
-  if (resp.stop_reason === 'refusal' || !resp.parsed_output) return null;
-  return resp.parsed_output;
+async function comIA(textos, termo, deps) {
+  return ia.gerarJSON({
+    esquema: Resumo, maxTokens: 4000,
+    sistema: 'Você analisa avaliações de compradores para um fabricante brasileiro que vende em marketplace. Seja concreto e use só o que está nas avaliações. Português do Brasil.',
+    usuario: `Produto: ${termo}\n\nAvaliações de anúncios concorrentes (Mercado Livre, Shopee, Amazon) e reclamações do Reclame Aqui:\n${textos.join('\n').slice(0, 30000)}\n\nResuma: as reclamações mais frequentes (tema, quanto aparece e um exemplo curto), o que mais elogiam, o que o fabricante deve melhorar no produto, o que deve deixar claro no anúncio, e até 5 ideias de produto ou kit que resolvem dores reais dos compradores (com o porquê, citando a dor).`,
+  }, deps);
 }
 
 async function handler(req, res, deps = {}) {
@@ -73,13 +69,13 @@ async function handler(req, res, deps = {}) {
     try { await arm.mudarArquivo('avaliacoes/' + armazem.slug(termo) + '.json', () => vazio); } catch (e) { /* cache é extra */ }
     return res.status(200).json(vazio); }
   const regra = itens.length ? temasPorRegra(itens) : { negativos: 0, positivos: 0, temas: [] };
-  let ia = null;
+  let resumoIA = null;
   const textos = itens.flatMap(i => i.reviews.filter(r => r.texto || r.titulo).map(r => `[${r.nota}★] ${r.titulo} ${r.texto}`.trim()))
     .concat(ra ? ra.itens.map(i => `[Reclame Aqui · ${i.empresa}] ${i.titulo}. ${i.trecho}`) : [])
     .concat(outras ? outras.itens.filter(i => i.negativo).map(i => `[${i.canal === 'amazon' ? 'Amazon' : 'Shopee'}] ${i.trecho}`) : []);
-  if (process.env.ANTHROPIC_API_KEY && textos.length >= 5) { try { ia = await comIA(textos, termo, process.env.ANTHROPIC_API_KEY, deps.Anthropic); } catch (e) { ia = null; } }
+  if (ia.qualIA() && textos.length >= 5) { try { resumoIA = await comIA(textos, termo, deps); } catch (e) { console.warn('[avaliacoes] IA falhou:', e && e.message); resumoIA = null; } }
   const out = { termo, em: new Date().toISOString(), anuncios: itens.length, motivoML, media: itens.map(i => i.media).filter(x => x != null),
-    totalAvaliacoes: itens.reduce((s, i) => s + (i.total || 0), 0), lidas: itens.reduce((n, i) => n + i.reviews.filter(r => r.texto || r.titulo).length, 0), ...regra, ia, fonte: ia ? 'ia' : 'regra', reclameAqui: ra, ...extras };
+    totalAvaliacoes: itens.reduce((s, i) => s + (i.total || 0), 0), lidas: itens.reduce((n, i) => n + i.reviews.filter(r => r.texto || r.titulo).length, 0), ...regra, ia: resumoIA, fonte: resumoIA ? 'ia' : 'regra', reclameAqui: ra, ...extras };
   try { await arm.mudarArquivo('avaliacoes/' + armazem.slug(termo) + '.json', () => out); } catch (e) { /* cache é extra */ }
   return res.status(200).json(out);
 }
